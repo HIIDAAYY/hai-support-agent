@@ -1,5 +1,5 @@
 import { PrismaClient } from '@prisma/client';
-import { compare } from 'bcrypt';
+import { compare } from 'bcryptjs';
 import { randomBytes } from 'crypto';
 
 async function test() {
