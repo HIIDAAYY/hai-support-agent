@@ -1,4 +1,4 @@
-import { hash, compare } from 'bcrypt';
+import { hash, compare } from 'bcryptjs';
 import { prisma } from '@/lib/prisma';
 import { randomBytes } from 'crypto';
 import { cookies } from 'next/headers';
