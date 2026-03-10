@@ -12,7 +12,7 @@ async function main() {
     // Create Super Admin
     const admin = await prisma.adminUser.upsert({
         where: { username: 'admin' },
-        update: {},
+        update: { passwordHash, updatedAt: new Date() },
         create: {
             id: 'admin-1',
             username: 'admin',
@@ -27,7 +27,7 @@ async function main() {
     // Create Agents
     const agent1 = await prisma.adminUser.upsert({
         where: { username: 'agent1' },
-        update: {},
+        update: { passwordHash: agentPasswordHash, updatedAt: new Date() },
         create: {
             id: 'agent-1',
             username: 'agent1',
@@ -41,7 +41,7 @@ async function main() {
 
     const agent2 = await prisma.adminUser.upsert({
         where: { username: 'agent2' },
-        update: {},
+        update: { passwordHash: agentPasswordHash, updatedAt: new Date() },
         create: {
             id: 'agent-2',
             username: 'agent2',
