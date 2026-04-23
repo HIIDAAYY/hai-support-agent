@@ -227,6 +227,44 @@ export function asyncHandler(
 }
 
 /**
+ * Generic API error handler for non-chat routes.
+ * Wraps a handler so thrown errors become JSON { error } responses.
+ * Preserves statusCode from AppError subclasses.
+ */
+export function withErrorHandler<Ctx = any>(
+  fn: (req: Request, ctx: Ctx) => Promise<Response>
+) {
+  return async (req: Request, ctx: Ctx): Promise<Response> => {
+    const startedAt = Date.now();
+    try {
+      const res = await fn(req, ctx);
+      return res;
+    } catch (error) {
+      logError(error as Error, {
+        url: req.url,
+        method: req.method,
+        durationMs: Date.now() - startedAt,
+      });
+
+      const status =
+        error instanceof AppError && error.statusCode >= 400 && error.statusCode < 600
+          ? error.statusCode
+          : 500;
+
+      const message =
+        error instanceof AppError && error.isOperational
+          ? error.message
+          : 'Internal server error';
+
+      return new Response(JSON.stringify({ error: message }), {
+        status,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+  };
+}
+
+/**
  * Validate required environment variables
  */
 export function validateEnvVars(requiredVars: string[]): void {
