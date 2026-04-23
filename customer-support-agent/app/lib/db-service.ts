@@ -158,7 +158,9 @@ export async function addMessage(
 }
 
 /**
- * Batch add multiple messages in a single transaction (performance optimization)
+ * Add multiple messages sequentially to preserve correct ordering.
+ * Each message gets a slightly offset timestamp to guarantee
+ * user message always appears before assistant message.
  */
 export async function addMessages(
   messages: Array<{
@@ -168,18 +170,29 @@ export async function addMessages(
   }>
 ) {
   try {
-    const result = await prisma.message.createMany({
-      data: messages.map(msg => ({
-        conversationId: msg.conversationId,
-        role: msg.role as MessageRole,
-        content: msg.content,
-      })),
-    });
+    const results = [];
+    const baseTime = new Date();
 
-    logger.info('Batch added messages', { count: result.count });
-    return result;
+    for (let i = 0; i < messages.length; i++) {
+      const msg = messages[i];
+      // Add i milliseconds offset so each message has a unique, ordered timestamp
+      const timestamp = new Date(baseTime.getTime() + i);
+
+      const created = await prisma.message.create({
+        data: {
+          conversationId: msg.conversationId,
+          role: msg.role as MessageRole,
+          content: msg.content,
+          timestamp,
+        },
+      });
+      results.push(created);
+    }
+
+    logger.info('Sequential messages saved', { count: results.length });
+    return { count: results.length };
   } catch (error) {
-    logger.error('Error batch adding messages', error);
+    logger.error('Error adding messages', error);
     throw error;
   }
 }
@@ -300,6 +313,37 @@ export async function redirectConversation(
       wasRedirected: true,
       redirectReason: reason,
     });
+
+    // CRITICAL FIX: Create handoff record for Handoff Queue
+    // Check if handoff already exists to avoid duplicate
+    const existingHandoff = await prisma.conversationHandoff.findUnique({
+      where: { conversationId: conversationId },
+    });
+
+    if (!existingHandoff) {
+      // Determine priority based on reason keywords
+      let priority = 1; // Default: Medium
+      const reasonLower = reason.toLowerCase();
+      if (reasonLower.includes('urgent') || reasonLower.includes('angry') || reasonLower.includes('frustrated')) {
+        priority = 2; // High priority
+      } else if (reasonLower.includes('cepet') || reasonLower.includes('sekarang')) {
+        priority = 2; // High priority for urgent Indonesian keywords
+      } else if (reasonLower.includes('billing') || reasonLower.includes('payment issue')) {
+        priority = 2; // High priority for payment issues
+      }
+
+      await prisma.conversationHandoff.create({
+        data: {
+          conversationId: conversationId,
+          handoffReason: reason,
+          priority: priority,
+          status: 'PENDING', // HandoffStatus.PENDING
+        },
+      });
+      console.log(`✅ Handoff record created for conversation: ${conversationId} with priority ${priority}`);
+    } else {
+      console.log(`ℹ️ Handoff record already exists for conversation: ${conversationId}`);
+    }
 
     console.log(`Redirected conversation: ${conversationId} - Reason: ${reason}`);
     return conversation;
