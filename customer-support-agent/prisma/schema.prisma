@@ -51,6 +51,7 @@ model Message {
 
   @@index([conversationId])
   @@index([timestamp])
+  @@index([conversationId, timestamp])
   @@map("messages")
 }
 
@@ -610,6 +611,47 @@ model BookingReminder {
   @@index([scheduledFor])
   @@index([status])
   @@map("booking_reminders")
+}
+
+// ============================================
+// KNOWLEDGE BASE MANAGEMENT
+// ============================================
+
+model KnowledgeBaseDocument {
+  id              String   @id @default(cuid())
+  fileName        String   @map("file_name")
+  originalName    String   @map("original_name")
+  knowledgeBaseId String   @map("knowledge_base_id") // e.g., "default", "clinic-1", etc.
+  uploadedBy      String   @map("uploaded_by") // Admin user ID
+  fileSize        Int      @map("file_size") // In bytes
+  mimeType        String?  @map("mime_type")
+  chunkCount      Int      @map("chunk_count")
+  status          KBDocumentStatus @default(PROCESSING)
+
+  // Pinecone tracking
+  pineconeNamespace String? @map("pinecone_namespace")
+  pineconeIds       String[] @default([]) @map("pinecone_ids") // Array of vector IDs
+
+  // Processing info
+  processedAt       DateTime? @map("processed_at")
+  errorMessage      String?   @map("error_message") @db.Text
+
+  // Timestamps
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  @@index([knowledgeBaseId])
+  @@index([uploadedBy])
+  @@index([status])
+  @@index([createdAt])
+  @@map("knowledge_base_documents")
+}
+
+enum KBDocumentStatus {
+  PROCESSING  // Being uploaded and processed
+  COMPLETED   // Successfully uploaded to Pinecone
+  FAILED      // Upload or processing failed
+  DELETED     // Marked for deletion
 }
 
 enum ConversationStatus {

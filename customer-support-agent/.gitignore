@@ -70,3 +70,11 @@ lerna-debug.log*
 Thumbs.db
 .AppleDouble
 .env*.local
+
+# Debug dumps & scratch outputs
+null
+all_files.txt
+test_output.txt
+test-results/
+tmp/
+*.local.log
