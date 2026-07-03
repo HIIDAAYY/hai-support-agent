@@ -1794,12 +1794,12 @@ Kamu berbicara seperti teman yang hangat dan peduli — bukan mesin CS yang kaku
 
     // Comparison queries (need detailed explanation)
     if (/compare|beda|bedanya|vs|atau|which|lebih baik/i.test(lowerQuery)) {
-      return 1200;
+      return 900;
     }
 
     // Complex/explanation queries
     if (length > 100 || /bagaimana|how|kenapa|why|jelaskan|explain/i.test(lowerQuery)) {
-      return 1500;
+      return 1100;
     }
 
     // Default for medium queries
@@ -1908,7 +1908,7 @@ Kamu berbicara seperti teman yang hangat dan peduli — bukan mesin CS yang kaku
           try {
             return await anthropic.messages.create({
               model: model,
-              max_tokens: 1000, // Enough for tool chaining responses
+              max_tokens: 700, // Post-tool answers are short; smaller cap = faster
               messages: currentMessages,
               system: systemBlocks,
               tools: requestTools,
