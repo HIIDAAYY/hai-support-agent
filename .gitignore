@@ -78,3 +78,17 @@ Thumbs.db
 # test/demo artifacts (Claude session)
 .playwright-mcp/
 *-test.png
+test-results/
+
+# scratch / generated dumps (do NOT commit)
+all_files.txt
+hallucination_report.txt
+services_output.json
+temp_output*.txt
+nul
+
+# scratch: moved dev/test dumps (do NOT commit)
+scratch/
+
+# personal dev/strategy notes (keep out of public repo)
+PERUBAHAN-DEMO-buyer-asing.md

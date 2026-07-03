@@ -45,7 +45,10 @@ const TypedMessage = ({ content, onComplete }: { content: string; onComplete: ()
   const [chars, setChars] = useState(0);
   const [started, setStarted] = useState(false);
   const completed = useRef(false);
-  const delay = Math.min(2000, Math.max(800, content.length * 2));
+  // Snappy reveal: short initial delay, then reveal several chars per tick so
+  // long answers finish fast. Keeps a subtle typing feel without the old
+  // 0.8–2s stall + slow per-char crawl that made the demo feel sluggish.
+  const delay = Math.min(250, Math.max(80, content.length));
 
   useEffect(() => {
     const t = setTimeout(() => setStarted(true), delay);
@@ -61,8 +64,9 @@ const TypedMessage = ({ content, onComplete }: { content: string; onComplete: ()
       return;
     }
     if (!started) return;
-    const charDelay = content.length > 300 ? 8 : content.length > 150 ? 12 : 18;
-    const t = setTimeout(() => setChars(c => c + 1), charDelay);
+    // Reveal in chunks (more chars/tick for longer messages) at a fast cadence.
+    const step = content.length > 400 ? 8 : content.length > 150 ? 4 : 2;
+    const t = setTimeout(() => setChars(c => c + step), 12);
     return () => clearTimeout(t);
   }, [started, chars, content, onComplete]);
 
@@ -885,8 +889,8 @@ function ChatArea({ clinicId }: { clinicId: string | null }) {
                     <HandHelping className="w-4 h-4 text-primary" />
                   </div>
                   <p className="text-muted-foreground">
-                    Need guidance? I&apos;ll help navigate tasks using internal
-                    resources.
+                    Ask about our services, prices, or availability — I answer
+                    instantly, 24/7.
                   </p>
                 </div>
                 <div className="flex items-center gap-3">
@@ -894,8 +898,8 @@ function ChatArea({ clinicId }: { clinicId: string | null }) {
                     <WandSparkles className="w-4 h-4 text-primary" />
                   </div>
                   <p className="text-muted-foreground">
-                    I&apos;m a whiz at finding information! I can dig through
-                    your knowledge base.
+                    I answer only from this business&apos;s real information — no
+                    made-up details.
                   </p>
                 </div>
                 <div className="flex items-center gap-3">
@@ -903,8 +907,8 @@ function ChatArea({ clinicId }: { clinicId: string | null }) {
                     <BookOpenText className="w-4 h-4 text-primary" />
                   </div>
                   <p className="text-muted-foreground">
-                    I&apos;m always learning! The more you share, the better I
-                    can assist you.
+                    Ready to book? I can schedule appointments and hand off to a
+                    human anytime.
                   </p>
                 </div>
               </div>
@@ -976,7 +980,7 @@ function ChatArea({ clinicId }: { clinicId: string | null }) {
       <CardFooter className="p-4 pt-0 flex flex-col gap-3">
         {messages.length === 0 && (
           <div className="flex justify-center gap-2 flex-wrap">
-            {["Info Produk", "Harga", "Bantuan"].map((label) => (
+            {["Services & prices", "Book an appointment", "Talk to a human"].map((label) => (
               <Button
                 key={label}
                 type="button"

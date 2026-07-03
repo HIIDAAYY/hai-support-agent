@@ -1,5 +1,5 @@
 import { Pinecone } from "@pinecone-database/pinecone";
-import { getOpenAIEmbedding, getOpenAIEmbeddings } from "./openai-embeddings";
+import { getPineconeEmbedding, getPineconeEmbeddings } from "./pinecone-embeddings";
 
 // Lazy initialization of Pinecone client
 let pineconeInstance: Pinecone | null = null;
@@ -71,8 +71,8 @@ export async function queryPineconeWithText(
   filter?: Record<string, any>
 ) {
   try {
-    // Convert text to embedding using OpenAI
-    const embedding = await getOpenAIEmbedding(text);
+    // Convert text to embedding using Pinecone Inference (query mode)
+    const embedding = await getPineconeEmbedding(text, "query");
 
     // Query Pinecone with the embedding
     return await queryPinecone(embedding, topK, filter);
@@ -96,8 +96,8 @@ export async function queryPineconeWithTextInNamespace(
   filter?: Record<string, any>
 ) {
   try {
-    // Convert text to embedding using OpenAI
-    const embedding = await getOpenAIEmbedding(text);
+    // Convert text to embedding using Pinecone Inference (query mode)
+    const embedding = await getPineconeEmbedding(text, "query");
 
     // Get namespaced index
     const index = getPineconeIndex();
@@ -156,8 +156,8 @@ export async function upsertTexts(
     // Extract text contents for batch embedding
     const textContents = texts.map((item) => item.text);
 
-    // Generate embeddings for all texts using OpenAI
-    const embeddings = await getOpenAIEmbeddings(textContents);
+    // Generate embeddings for all texts using Pinecone Inference (passage mode)
+    const embeddings = await getPineconeEmbeddings(textContents, "passage");
 
     // Create vectors with embeddings
     const vectors = texts.map((item, index) => ({
@@ -194,8 +194,8 @@ export async function upsertTextsToNamespace(
     // Extract text contents for batch embedding
     const textContents = texts.map((item) => item.text);
 
-    // Generate embeddings for all texts using OpenAI
-    const embeddings = await getOpenAIEmbeddings(textContents);
+    // Generate embeddings for all texts using Pinecone Inference (passage mode)
+    const embeddings = await getPineconeEmbeddings(textContents, "passage");
 
     // Create vectors with embeddings
     const vectors = texts.map((item, index) => ({

@@ -12,6 +12,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
+// ── "Hire me" CTA ─────────────────────────────────────────────────────────
+// Turns the top-right button into a lead magnet: a buyer viewing the demo can
+// contact the builder in one click. Change this to your Upwork/portfolio/LinkedIn
+// URL if you prefer. Default: WhatsApp (fits the WhatsApp-automation positioning).
+const BUILDER_CTA_URL = "https://wa.me/6285161220535?text=Hi%20Adit%2C%20I%20saw%20your%20AI%20support%20agent%20demo%20and%20I%27d%20like%20one%20for%20my%20business.";
+const BUILDER_CTA_LABEL = "Get one for your business";
+
 const themeColors = {
   neutral: "#000000",
   red: "#EF4444",
@@ -152,12 +159,12 @@ const TopNavBar = () => {
           </DropdownMenuContent>
         </DropdownMenu>
         <Link
-          href="https://github.com/anthropics/anthropic-quickstarts"
+          href={BUILDER_CTA_URL}
           target="_blank"
           rel="noopener noreferrer"
         >
           <Button className="bg-white text-primary hover:bg-white/90 font-medium">
-            Deploy your own
+            {BUILDER_CTA_LABEL}
           </Button>
         </Link>
       </div>

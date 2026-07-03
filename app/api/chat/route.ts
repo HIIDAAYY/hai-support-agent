@@ -111,6 +111,7 @@ function sanitizeHeaderValue(value: string): string {
 // Output: full clinic name for system prompt
 function getClinicNameById(clinicId: string): string {
   const clinicMap: Record<string, string> = {
+    "lumina-medspa": "Lumina Medspa",
     "glow-clinic": "Klinik Glow Aesthetics",
     "airin-skin": "Airin Skin Clinic",
     "beautylosophy-clinic": "The Clinic Beautylosophy",
@@ -157,6 +158,8 @@ function getClinicNameById(clinicId: string): string {
 // Klinik yang tak terdaftar tetap memakai default lama (perilaku tak berubah).
 function getClinicContactById(clinicId: string): { whatsapp: string; emergency: string } {
   const contactMap: Record<string, { whatsapp: string; emergency: string }> = {
+    "lumina-medspa": { whatsapp: "+1 (415) 555-0142", emergency: "+1 (415) 555-0142" },
+    "glow-clinic": { whatsapp: "+62 811-1900-042", emergency: "+62 811-1900-042" },
     "vorta-clinic": { whatsapp: "+62 811-8883-318", emergency: "+62 811-8883-318" },
     "ira-skincare": { whatsapp: "0821-3191-6900", emergency: "0821-3191-6900" },
     "beauty-palace": { whatsapp: "+62 852-8088-8118", emergency: "+62 852-8088-8118" },
@@ -594,8 +597,18 @@ export async function POST(req: Request) {
           },
         };
 
-        if (clinicBusinessMap[specificClinicId]) {
-          businessContext = clinicBusinessMap[specificClinicId];
+        // Use clinicBusinessMap if present, otherwise derive the display name from
+        // the canonical name map (getClinicNameById covers every registered clinic).
+        // Demo clinics aren't all listed in clinicBusinessMap, and without this they
+        // fell through to the Glow fallback below (~line 606), making the bot adopt
+        // the "Klinik Glow Aesthetics" identity intermittently.
+        if (specificClinicId) {
+          businessContext = clinicBusinessMap[specificClinicId] || {
+            businessId: glowClinic.id,
+            businessName: getClinicNameById(specificClinicId),
+            businessType: "BEAUTY_CLINIC",
+            settings: glowClinic.settings,
+          };
           console.log(
             `🏥 Auto-detected business for web: ${businessContext.businessName} (mapped to ${glowClinic.name} for bookings)`
           );
@@ -765,6 +778,33 @@ export async function POST(req: Request) {
   const clinicContact = getClinicContactById(activeClinicId);
   const clinicWhatsApp = clinicContact.whatsapp;
   const clinicEmergency = clinicContact.emergency;
+
+  // Prompt-only demo tenants (e.g. lumina-medspa) carry their full service menu,
+  // USD pricing and persona inside getSystemPromptIntro() and have NO database
+  // seed. They must NOT receive the glow-clinic IDR catalog / few-shot examples
+  // (below) or the booking tools — either would drag the answer back to Rupiah.
+  const isPromptOnlyDemo = activeClinicId === "lumina-medspa";
+
+  // ── DEMO BUSINESS BASICS ──────────────────────────────────────────────
+  // Location / hours / contact / booking basics for demo tenants. These are
+  // the questions people try FIRST when testing a chatbot, so answering them
+  // confidently makes a much stronger first impression than "not in my KB".
+  // Facts are injected into the system prompt below (dynamicSystemPart).
+  const CLINIC_BASICS: Record<string, string> = {
+    "lumina-medspa": `- Location: 340 Union Street, Suite 200, San Francisco, CA 94133.
+- Opening hours: Mon–Fri 9:00 AM–7:00 PM, Sat 10:00 AM–5:00 PM. Closed Sundays & public holidays.
+- Contact: text/call +1 (415) 555-0142 · you can also book right here in this chat.
+- Booking & reschedule: booking is free; reschedule or cancel up to 24h before your appointment at no charge.
+- Payment: all major cards, Apple Pay, and HSA/FSA accepted. Prices in USD.
+- Lead provider: Dr. Emily Carter, MD (board-certified).`,
+    "glow-clinic": `- Location: Jl. Senopati No. 42, Kebayoran Baru, South Jakarta (near Senopati / Blok M).
+- Opening hours: Mon–Sat 09:00–20:00, Sun 10:00–18:00 (WIB). Closed on public holidays.
+- Contact: WhatsApp ${clinicWhatsApp} · appointments can also be booked directly in this chat.
+- Booking & reschedule: booking is free; reschedule/cancel up to 24h before your slot at no charge.
+- Payment: cards, bank transfer, and e-wallets (GoPay/OVO/QRIS) accepted.
+- Lead doctor: dr. Amanda Kusuma.`,
+  };
+  const clinicBasics = CLINIC_BASICS[activeClinicId] || CLINIC_BASICS["glow-clinic"];
   // DEMO clinics get a STRICT scope guard so the bot never invents another
   // clinic's identity/info (fixes the "Glow Aesthetics" leak) and stays on
   // topic. Other clinics keep their existing behavior untouched.
@@ -796,6 +836,44 @@ export async function POST(req: Request) {
 
   // Change the system prompt based on knowledge base or business context
   const getSystemPromptIntro = () => {
+    // ── ENGLISH / USD DEMO TENANT (checked FIRST) ─────────────────────────
+    // Must come before the businessContext branch below: lumina-medspa gets a
+    // hardcoded BEAUTY_CLINIC fallback businessContext, which would otherwise
+    // return the Indonesian "Aya" prompt (no menu) and make this branch dead code.
+    if (activeClinicId === "lumina-medspa") {
+      return `You are Ava, the friendly virtual assistant for ${clinicName}, a modern medical spa in San Francisco. You help clients with treatment info, pricing, availability, and booking requests.
+
+  **Voice & style:**
+  - Warm, polished, and concise — like a great front-desk concierge, not a robot.
+  - Always reply in English.
+  - Use the client's name once they share it. Light, tasteful emoji is fine (not every line).
+  - Never say "As an AI" or "As a virtual assistant."
+
+  **Service menu (prices in USD — you HAVE this list, so quote it directly; never say you need to check or defer pricing to a call):**
+  - ✨ Signature HydraFacial — $199 (60 min) — deep cleanse + hydration glow.
+  - 💧 Custom Facial — $149 (50 min) — tailored to your skin concern.
+  - 🎯 Acne Clear Treatment — $179 (60 min) — for active breakouts.
+  - 💎 Microneedling — $299 (75 min) — texture, scars & fine lines.
+  - 🌟 Chemical Peel — $175 (45 min) — brightening & renewal.
+  - 👑 Botox — from $12/unit · Dermal Fillers — from $650/syringe (consult required).
+
+  **When asked about prices or the menu, LIST the relevant items with their USD prices immediately.** Example:
+  Client: "What facials do you have and how much?"
+  You: "Happy to help! ✨ Here are our facials:
+  • Signature HydraFacial — $199 (60 min)
+  • Custom Facial — $149 (50 min)
+  • Acne Clear Treatment — $179 (60 min)
+  Want me to recommend one for your skin, or shall I get you booked in?"
+
+  **Booking (DEMO — lead capture, no live database):**
+  - When a client wants to book, act as a concierge collecting: (1) full name, (2) best phone or email, (3) preferred treatment, date & time.
+  - Then confirm warmly: "Thanks {Name}! I've noted your request for {treatment} on {date}. Our team will text {contact} shortly to confirm. Anything else I can help with? 😊"
+
+  **Safety:** For medical questions (pregnancy, medications, skin conditions), do NOT give definitive medical advice — recommend a consultation with Dr. Emily Carter and offer to book one.
+
+  **Scope:** Only answer for ${clinicName}. If asked about other businesses or unrelated topics, politely redirect back to how you can help with ${clinicName}.`;
+    }
+
     // BOOKING SYSTEM: If businessContext is provided, customize based on business type
     if (businessContext) {
       const { businessName, businessType } = businessContext;
@@ -839,6 +917,10 @@ Kamu berbicara seperti teman yang hangat dan peduli — bukan mesin CS yang kaku
       }
     }
 
+    // ── ENGLISH / USD DEMO TENANT (e.g. a US med-spa) ─────────────────────
+    // Reachable at ?clinicId=lumina-medspa. Fully prompt-driven (no DB seed
+    // needed): service menu + USD prices live here, booking is lead-capture.
+    // Lets a US/EU buyer see a demo in a context they recognise.
     // Handle both string "clinic" and object { kb: "clinic", clinicId: "..." }
     if (
       knowledgeBaseId === "clinic" ||
@@ -946,13 +1028,43 @@ Kamu berbicara seperti teman yang hangat dan peduli — bukan mesin CS yang kaku
   - Always convert relative dates (besok, lusa, minggu depan) to actual dates
   - For booking tools, always use ISO format: YYYY-MM-DD
 
+  **📍 BUSINESS BASICS (always known — use these directly, never say "not in my knowledge base" for these):**
+  ${clinicBasics}
+
   **Knowledge Base Context:**
   To help you answer the customer's question, we have retrieved the following information from our knowledge base. Use this information to provide accurate answers.
   NOTE: The knowledge base may be in Indonesian. If the customer writes in English, you MUST translate the information to English in your response.
-  ${isRagWorking ? `${retrievedContext}` : "No relevant information found in our knowledge base for this query."}`;
+  ${isRagWorking
+    ? `${retrievedContext}`
+    : isPromptOnlyDemo
+      ? "Everything you need (service menu, USD pricing, hours, contact, booking flow) is already in your instructions above — answer directly from there. Never say you lack the information or defer the price list to a call."
+      : "No relevant information found in our knowledge base for this query."}`;
+
+  // Prompt-only demo tenants get a compact prompt: their self-contained intro
+  // (menu + persona + lead-capture booking) plus ONLY the JSON output contract
+  // the response parser depends on — none of the glow-clinic IDR content below.
+  const promptOnlySystem = `${getSystemPromptIntro()}
+
+  ═══════════════════════════════════════════════════════════════════════════
+  **CRITICAL: Response Format**
+  You must return ONLY a raw JSON object. Do NOT wrap it in markdown code blocks or backticks.
+
+  Return the JSON object directly in this exact structure:
+  {
+      "thinking": "Brief explanation of your reasoning for how you address the query",
+      "response": "Your reply to the customer",
+      "user_mood": "one of: positive|neutral|negative|curious|frustrated|confused|concerned|interested|worried|angry|happy|considering",
+      "suggested_questions": ["Question 1?", "Question 2?", "Question 3?"],
+      "debug": { "context_used": false },
+      ${USE_CATEGORIES ? '"matched_categories": [],' : ""}
+      "tools_used": [],
+      "redirect_to_agent": { "should_redirect": false }
+  }
+
+  DO NOT use triple-backticks with "json" or any markdown code block. Return ONLY the raw JSON object. Always reply in English.`;
 
   // Stable system prompt: cached via prompt caching — saves ~90% on input token cost for this block
-  const systemPrompt = `${getSystemPromptIntro()}
+  const systemPrompt = isPromptOnlyDemo ? promptOnlySystem : `${getSystemPromptIntro()}
 
   ═══════════════════════════════════════════════════════════════════════════
   🌐 CRITICAL: LANGUAGE MATCHING RULE (HIGHEST PRIORITY) 🌐
@@ -1707,6 +1819,14 @@ Kamu berbicara seperti teman yang hangat dan peduli — bukan mesin CS yang kaku
     const dynamicMaxTokens = getMaxTokensForQuery(latestMessage, true);
     console.log(`🎯 Dynamic max_tokens: ${dynamicMaxTokens} (query length: ${latestMessage.length})`);
 
+    // Prompt-only demo tenants (see isPromptOnlyDemo above) run tool-free: exposing
+    // tools makes the model call list_services, which returns another clinic's (IDR)
+    // data and overrides the USD menu in their system prompt.
+    const requestTools = isPromptOnlyDemo ? undefined : BOT_TOOLS;
+    if (isPromptOnlyDemo) {
+      console.log(`🧾 Prompt-only demo tenant (${activeClinicId}) — tools disabled`);
+    }
+
     let response = await retryWithBackoff(
       async () => {
         try {
@@ -1716,7 +1836,7 @@ Kamu berbicara seperti teman yang hangat dan peduli — bukan mesin CS yang kaku
             max_tokens: dynamicMaxTokens, // ⬅️ Dynamic based on query type
             messages: anthropicMessages,
             system: systemBlocks,
-            tools: BOT_TOOLS,
+            tools: requestTools,
             temperature: businessContext?.businessType === 'BEAUTY_CLINIC' ? 0.5 : 0.3,
           });
         } catch (apiError: any) {
@@ -1791,7 +1911,7 @@ Kamu berbicara seperti teman yang hangat dan peduli — bukan mesin CS yang kaku
               max_tokens: 1000, // Enough for tool chaining responses
               messages: currentMessages,
               system: systemBlocks,
-              tools: BOT_TOOLS,
+              tools: requestTools,
               temperature: 0.3,
             });
           } catch (apiError: any) {

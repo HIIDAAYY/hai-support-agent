@@ -146,8 +146,18 @@ const RightSidebar: React.FC = () => {
         </CardHeader>
         <CardContent className="overflow-y-auto h-[calc(100%-45px)]">
           {ragHistory.length === 0 && (
-            <div className="text-sm text-muted-foreground">
-              The assistant will display sources here once finding them
+            <div className="flex flex-col items-start gap-2 text-sm text-muted-foreground">
+              <p className="font-medium text-foreground">Grounded answers</p>
+              <p>
+                When the assistant answers from the business&apos;s documents, the
+                exact source passages it used appear here — so every reply is
+                traceable and never made up.
+              </p>
+              <p className="text-xs">
+                Try a policy or info question (e.g.{" "}
+                <span className="italic">&ldquo;What&apos;s your reschedule policy?&rdquo;</span>)
+                to see sources light up.
+              </p>
             </div>
           )}
           {ragHistory.map((historyItem, index) => (
