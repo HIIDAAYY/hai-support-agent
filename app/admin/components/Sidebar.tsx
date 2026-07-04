@@ -73,10 +73,10 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
     const menuItems = [
         { href: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
         { href: '/admin/conversations', label: 'Conversations', icon: MessageSquare },
-        { href: '/admin/handoffs', label: 'Antrian Handoff', icon: ArrowLeftRight, badge: pendingHandoffs > 0 ? pendingHandoffs : undefined },
+        { href: '/admin/handoffs', label: 'Handoff Queue', icon: ArrowLeftRight, badge: pendingHandoffs > 0 ? pendingHandoffs : undefined },
         { href: '/admin/analytics', label: 'Analytics', icon: BarChart3 },
-        { href: '/admin/agents', label: 'Agen', icon: Users },
-        { href: '/admin/settings', label: 'Pengaturan', icon: Settings },
+        { href: '/admin/agents', label: 'Agents', icon: Users },
+        { href: '/admin/settings', label: 'Settings', icon: Settings },
     ];
 
     const initials = (user?.name || 'Admin')
@@ -125,7 +125,7 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
                 {/* Menu */}
                 <nav className="flex-1 px-4 py-5 overflow-y-auto">
                     <div className="text-[11px] font-semibold tracking-wider text-gray-400 uppercase mb-3 px-2">
-                        Menu Utama
+                        Main Menu
                     </div>
                     <div className="space-y-1">
                         {menuItems.map((item) => {
@@ -189,7 +189,7 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
                             </button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" side="top" className="w-56">
-                            <DropdownMenuLabel>Akun Saya</DropdownMenuLabel>
+                            <DropdownMenuLabel>My Account</DropdownMenuLabel>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem disabled>
                                 {user?.name || 'Loading...'}
@@ -197,7 +197,7 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
                             <DropdownMenuSeparator />
                             <DropdownMenuItem onClick={handleLogout} className="text-red-600 focus:text-red-600">
                                 <LogOut className="mr-2 h-4 w-4" />
-                                Keluar
+                                Log out
                             </DropdownMenuItem>
                         </DropdownMenuContent>
                     </DropdownMenu>

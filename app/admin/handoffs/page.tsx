@@ -27,22 +27,22 @@ function priorityPill(priority: number) {
         case 3:
             return <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-rose-100 text-rose-700">Urgent</span>;
         case 2:
-            return <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-orange-100 text-orange-700">Tinggi</span>;
+            return <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-orange-100 text-orange-700">High</span>;
         case 1:
-            return <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-amber-100 text-amber-700">Sedang</span>;
+            return <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-amber-100 text-amber-700">Medium</span>;
         default:
-            return <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-600">Rendah</span>;
+            return <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-600">Low</span>;
     }
 }
 
 function statusPill(status: string) {
     switch (status) {
         case 'PENDING':
-            return <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-amber-100 text-amber-700">Menunggu</span>;
+            return <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-amber-100 text-amber-700">Pending</span>;
         case 'IN_PROGRESS':
-            return <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-violet-100 text-violet-700">Diproses</span>;
+            return <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-violet-100 text-violet-700">In Progress</span>;
         case 'RESOLVED':
-            return <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-emerald-100 text-emerald-700">Selesai</span>;
+            return <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-emerald-100 text-emerald-700">Resolved</span>;
         default:
             return <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-600">{status}</span>;
     }
@@ -102,32 +102,32 @@ export default function HandoffQueuePage() {
         const mins = Math.floor((Date.now() - new Date(date).getTime()) / 60000);
         if (mins < 60) return `${mins}m`;
         const hrs = Math.floor(mins / 60);
-        if (hrs < 24) return `${hrs}j ${mins % 60}m`;
-        return `${Math.floor(hrs / 24)}h`;
+        if (hrs < 24) return `${hrs}h ${mins % 60}m`;
+        return `${Math.floor(hrs / 24)}d`;
     };
 
     return (
         <div>
             <PageHeader
-                title="Antrian Handoff"
-                subtitle="Daftar percakapan yang membutuhkan agen manusia"
+                title="Handoff Queue"
+                subtitle="Conversations that need a human agent"
                 toggleSidebar={toggle}
             />
 
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
                 <div className="px-5 py-4 border-b border-gray-100">
-                    <h2 className="text-base font-bold text-gray-900">Permintaan Tertunda</h2>
-                    <p className="text-xs text-gray-500 mt-0.5">Klaim untuk mulai menangani percakapan</p>
+                    <h2 className="text-base font-bold text-gray-900">Pending Requests</h2>
+                    <p className="text-xs text-gray-500 mt-0.5">Claim one to start handling the conversation</p>
                 </div>
 
                 <div className="hidden md:grid grid-cols-12 gap-4 px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider bg-gray-50/60 border-b border-gray-100">
-                    <div className="col-span-1">Prioritas</div>
+                    <div className="col-span-1">Priority</div>
                     <div className="col-span-3">Customer</div>
-                    <div className="col-span-3">Alasan</div>
-                    <div className="col-span-1">Menunggu</div>
+                    <div className="col-span-3">Reason</div>
+                    <div className="col-span-1">Waiting</div>
                     <div className="col-span-1">Status</div>
-                    <div className="col-span-2">Ditugaskan</div>
-                    <div className="col-span-1 text-right">Aksi</div>
+                    <div className="col-span-2">Assigned</div>
+                    <div className="col-span-1 text-right">Action</div>
                 </div>
 
                 {loading ? (
@@ -136,7 +136,7 @@ export default function HandoffQueuePage() {
                     </div>
                 ) : handoffs.length === 0 ? (
                     <div className="py-16 text-center text-gray-400 text-sm">
-                        Tidak ada handoff yang menunggu
+                        No handoffs waiting
                     </div>
                 ) : (
                     <div className="divide-y divide-gray-100">
@@ -183,7 +183,7 @@ export default function HandoffQueuePage() {
                                                 onClick={() => claimHandoff(handoff.id)}
                                                 className="bg-violet-600 hover:bg-violet-700 text-white rounded-lg"
                                             >
-                                                Klaim
+                                                Claim
                                             </Button>
                                         )}
                                         <Button

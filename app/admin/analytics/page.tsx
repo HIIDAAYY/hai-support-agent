@@ -8,20 +8,20 @@ import { useSidebar } from '../components/SidebarContext';
 
 const CONV_TREND = [135, 158, 175, 145, 180, 168, 190];
 const CONV_RESOLVED = [115, 138, 155, 130, 165, 150, 175];
-const DAYS = ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'];
+const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 const CHANNELS = [
     { name: 'Web Chat', percent: 42, color: '#7c3aed' },
     { name: 'WhatsApp', percent: 25, color: '#a78bfa' },
     { name: 'Email', percent: 18, color: '#c4b5fd' },
-    { name: 'Lainnya', percent: 15, color: '#e9d5ff' },
+    { name: 'Other', percent: 15, color: '#e9d5ff' },
 ];
 
 const TOPIK = [
-    { name: 'Info Produk', count: 340, percent: 100 },
-    { name: 'Pengiriman', count: 245, percent: 72 },
-    { name: 'Retur', count: 180, percent: 53 },
-    { name: 'Pembayaran', count: 120, percent: 35 },
+    { name: 'Product Info', count: 340, percent: 100 },
+    { name: 'Shipping', count: 245, percent: 72 },
+    { name: 'Returns', count: 180, percent: 53 },
+    { name: 'Payments', count: 120, percent: 35 },
 ];
 
 function Sparkline({ data, color = '#7c3aed' }: { data: number[]; color?: string }) {
@@ -199,7 +199,7 @@ export default function AnalyticsPage() {
         <div>
             <PageHeader
                 title="Analytics"
-                subtitle="Pantau performa HAI Assistant secara real-time"
+                subtitle="Monitor your assistant's performance in real time"
                 toggleSidebar={toggle}
                 actions={
                     <Select value={period} onValueChange={setPeriod}>
@@ -207,10 +207,10 @@ export default function AnalyticsPage() {
                             <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                            <SelectItem value="today">Hari Ini</SelectItem>
-                            <SelectItem value="7d">7 Hari Terakhir</SelectItem>
-                            <SelectItem value="30d">30 Hari Terakhir</SelectItem>
-                            <SelectItem value="90d">90 Hari Terakhir</SelectItem>
+                            <SelectItem value="today">Today</SelectItem>
+                            <SelectItem value="7d">Last 7 days</SelectItem>
+                            <SelectItem value="30d">Last 30 days</SelectItem>
+                            <SelectItem value="90d">Last 90 days</SelectItem>
                         </SelectContent>
                     </Select>
                 }
@@ -230,16 +230,16 @@ export default function AnalyticsPage() {
                                     <Clock className="h-5 w-5" />
                                 </div>
                                 <div>
-                                    <div className="text-sm font-medium text-gray-700">Rata-rata Respon</div>
+                                    <div className="text-sm font-medium text-gray-700">Avg. Response Time</div>
                                     <div className="text-xs text-rose-500 flex items-center gap-1">
-                                        <TrendingDown className="h-3 w-3" /> 12% dari minggu lalu
+                                        <TrendingDown className="h-3 w-3" /> 12% vs last week
                                     </div>
                                 </div>
                             </div>
                             <div className="flex items-end justify-between">
                                 <div>
                                     <span className="text-4xl font-bold text-violet-600">{analytics?.avgResponseTime || '0.8'}</span>
-                                    <span className="text-sm text-gray-500 ml-1">detik</span>
+                                    <span className="text-sm text-gray-500 ml-1">sec</span>
                                 </div>
                                 <Sparkline data={[1.2, 1.0, 1.1, 0.9, 0.95, 0.85, 0.8]} color="#7c3aed" />
                             </div>
@@ -251,9 +251,9 @@ export default function AnalyticsPage() {
                                     <Star className="h-5 w-5" />
                                 </div>
                                 <div>
-                                    <div className="text-sm font-medium text-gray-700">Kepuasan Pelanggan</div>
+                                    <div className="text-sm font-medium text-gray-700">Customer Satisfaction</div>
                                     <div className="text-xs text-emerald-600 flex items-center gap-1">
-                                        <TrendingUp className="h-3 w-3" /> 3% dari minggu lalu
+                                        <TrendingUp className="h-3 w-3" /> 3% vs last week
                                     </div>
                                 </div>
                             </div>
@@ -277,9 +277,9 @@ export default function AnalyticsPage() {
                                     <MessageSquare className="h-5 w-5" />
                                 </div>
                                 <div>
-                                    <div className="text-sm font-medium text-gray-700">Total Percakapan</div>
+                                    <div className="text-sm font-medium text-gray-700">Total Conversations</div>
                                     <div className="text-xs text-emerald-600 flex items-center gap-1">
-                                        <TrendingUp className="h-3 w-3" /> 8% dari minggu lalu
+                                        <TrendingUp className="h-3 w-3" /> 8% vs last week
                                     </div>
                                 </div>
                             </div>
@@ -305,17 +305,17 @@ export default function AnalyticsPage() {
                         <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
                             <div className="flex items-center justify-between mb-2">
                                 <div>
-                                    <h3 className="font-bold text-gray-900">Volume Percakapan</h3>
-                                    <p className="text-xs text-gray-500">Tren percakapan 7 hari terakhir</p>
+                                    <h3 className="font-bold text-gray-900">Conversation Volume</h3>
+                                    <p className="text-xs text-gray-500">Conversation trend, last 7 days</p>
                                 </div>
                                 <div className="flex items-center gap-4 text-xs">
                                     <div className="flex items-center gap-1.5">
                                         <span className="h-2.5 w-2.5 rounded-full bg-violet-600" />
-                                        <span className="text-gray-600">Percakapan</span>
+                                        <span className="text-gray-600">Conversations</span>
                                     </div>
                                     <div className="flex items-center gap-1.5">
                                         <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
-                                        <span className="text-gray-600">Terselesaikan</span>
+                                        <span className="text-gray-600">Resolved</span>
                                     </div>
                                 </div>
                             </div>
@@ -323,7 +323,7 @@ export default function AnalyticsPage() {
                         </div>
 
                         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-                            <h3 className="font-bold text-gray-900 mb-3">Distribusi Channel</h3>
+                            <h3 className="font-bold text-gray-900 mb-3">Channel Distribution</h3>
                             <div className="flex items-center gap-4">
                                 <DonutChart data={CHANNELS} />
                                 <div className="flex-1 space-y-2">
@@ -343,7 +343,7 @@ export default function AnalyticsPage() {
 
                     {/* Topik populer */}
                     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 mb-6">
-                        <h3 className="font-bold text-gray-900 mb-4">Topik Populer</h3>
+                        <h3 className="font-bold text-gray-900 mb-4">Popular Topics</h3>
                         <div className="space-y-4">
                             {TOPIK.map((t, i) => (
                                 <div key={t.name} className="flex items-center gap-4">

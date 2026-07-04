@@ -24,6 +24,45 @@ function useCountUp(target: number, duration = 1200): number {
     return value;
 }
 
+const TREND = [42, 58, 51, 70, 63, 82, 91];
+const TREND_DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+function AreaChart({ data, days }: { data: number[]; days: string[] }) {
+    const max = Math.max(...data);
+    const range = max || 1;
+    const width = 520, height = 200, padL = 24, padR = 12, padT = 12, padB = 24;
+    const innerW = width - padL - padR;
+    const innerH = height - padT - padB;
+    const step = innerW / (data.length - 1);
+    const px = (i: number) => padL + i * step;
+    const py = (v: number) => padT + (1 - v / range) * innerH;
+    const line = data.map((v, i) => `${i === 0 ? 'M' : 'L'}${px(i)},${py(v)}`).join(' ');
+    const area = `${line} L${px(data.length - 1)},${padT + innerH} L${padL},${padT + innerH} Z`;
+    return (
+        <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-56">
+            <defs>
+                <linearGradient id="dashArea" x1="0" x2="0" y1="0" y2="1">
+                    <stop offset="0%" stopColor="#7c3aed" stopOpacity={0.25} />
+                    <stop offset="100%" stopColor="#7c3aed" stopOpacity={0} />
+                </linearGradient>
+            </defs>
+            {[0.25, 0.5, 0.75, 1].map((f, i) => {
+                const y = padT + (1 - f) * innerH;
+                return <line key={i} x1={padL} y1={y} x2={width - padR} y2={y} stroke="#f3f4f6" strokeDasharray="3 3" />;
+            })}
+            <path d={area} fill="url(#dashArea)" />
+            <path d={line} fill="none" stroke="#7c3aed" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
+            {data.map((v, i) => {
+                const last = i === data.length - 1;
+                return <circle key={i} cx={px(i)} cy={py(v)} r={last ? 5 : 3} fill="white" stroke="#7c3aed" strokeWidth={2} />;
+            })}
+            {days.map((d, i) => (
+                <text key={d} x={px(i)} y={height - 6} textAnchor="middle" fontSize="10" fill="#9ca3af">{d}</text>
+            ))}
+        </svg>
+    );
+}
+
 export default function DashboardPage() {
     const { toggle } = useSidebar();
     const [metrics, setMetrics] = useState<any>(null);
@@ -62,30 +101,30 @@ export default function DashboardPage() {
 
     const stats = [
         {
-            title: 'Total Percakapan',
+            title: 'Total Conversations',
             value: animTotalConversations,
-            sub: 'Pada periode terpilih',
+            sub: 'In selected period',
             icon: MessageSquare,
             iconBg: 'bg-violet-100 text-violet-600',
         },
         {
-            title: 'Handoff Aktif',
+            title: 'Active Handoffs',
             value: animActiveHandoffs,
-            sub: 'Menunggu tindakan',
+            sub: 'Awaiting action',
             icon: ArrowLeftRight,
             iconBg: 'bg-amber-100 text-amber-600',
         },
         {
             title: 'AI Resolution Rate',
             value: `${animAiResolutionRate}%`,
-            sub: 'Tanpa bantuan manusia',
+            sub: 'Without human help',
             icon: CheckCircle,
             iconBg: 'bg-emerald-100 text-emerald-600',
         },
         {
             title: 'Avg Intent Score',
             value: animAvgIntentScore,
-            sub: 'Potensi penjualan',
+            sub: 'Sales potential',
             icon: TrendingUp,
             iconBg: 'bg-indigo-100 text-indigo-600',
         },
@@ -95,17 +134,17 @@ export default function DashboardPage() {
         <div>
             <PageHeader
                 title="Dashboard"
-                subtitle="Ringkasan performa HAI Assistant"
+                subtitle="Overview of your assistant's performance"
                 toggleSidebar={toggle}
                 actions={
                     <Select value={period} onValueChange={setPeriod}>
                         <SelectTrigger className="w-[160px] bg-white border-gray-200 rounded-lg">
-                            <SelectValue placeholder="Periode" />
+                            <SelectValue placeholder="Period" />
                         </SelectTrigger>
                         <SelectContent>
-                            <SelectItem value="today">Hari Ini</SelectItem>
-                            <SelectItem value="7d">7 Hari Terakhir</SelectItem>
-                            <SelectItem value="30d">30 Hari Terakhir</SelectItem>
+                            <SelectItem value="today">Today</SelectItem>
+                            <SelectItem value="7d">Last 7 days</SelectItem>
+                            <SelectItem value="30d">Last 30 days</SelectItem>
                         </SelectContent>
                     </Select>
                 }
@@ -124,7 +163,7 @@ export default function DashboardPage() {
                                     <span className="text-white text-lg font-bold">✓</span>
                                 </div>
                                 <div>
-                                    <p className="font-bold text-emerald-800">Booking Baru Berhasil!</p>
+                                    <p className="font-bold text-emerald-800">New Booking Confirmed!</p>
                                     <p className="text-sm text-emerald-600">
                                         {latestBooking.bookingNumber} — {latestBooking.serviceName} — {latestBooking.customerName}
                                     </p>
@@ -133,7 +172,7 @@ export default function DashboardPage() {
                             <button
                                 onClick={() => setLatestBooking(null)}
                                 className="text-emerald-400 hover:text-emerald-600 text-xl font-bold ml-4"
-                                aria-label="Tutup"
+                                aria-label="Close"
                             >
                                 ✕
                             </button>
@@ -165,21 +204,17 @@ export default function DashboardPage() {
                         <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
                             <div className="flex items-center justify-between mb-4">
                                 <div>
-                                    <h2 className="text-lg font-bold text-gray-900">Ikhtisar</h2>
-                                    <p className="text-xs text-gray-500">Tren percakapan periode terpilih</p>
+                                    <h2 className="text-lg font-bold text-gray-900">Overview</h2>
+                                    <p className="text-xs text-gray-500">Conversation trend for the selected period</p>
                                 </div>
                             </div>
-                            <div className="h-64 flex flex-col items-center justify-center text-center text-gray-400 bg-gray-50/60 rounded-xl">
-                                <MessageSquare className="h-10 w-10 mb-2 opacity-40" />
-                                <p className="text-sm">Grafik akan segera hadir</p>
-                                <p className="text-xs">(Memerlukan library Recharts)</p>
-                            </div>
+                            <AreaChart data={TREND} days={TREND_DAYS} />
                         </div>
 
                         <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
                             <div className="mb-4">
-                                <h2 className="text-lg font-bold text-gray-900">Aktivitas Terbaru</h2>
-                                <p className="text-xs text-gray-500">Update terkini sistem</p>
+                                <h2 className="text-lg font-bold text-gray-900">Recent Activity</h2>
+                                <p className="text-xs text-gray-500">Latest system updates</p>
                             </div>
                             <div className="space-y-4">
                                 {activity.length === 0 ? (
@@ -187,16 +222,16 @@ export default function DashboardPage() {
                                         <div className="h-2 w-2 rounded-full bg-emerald-500 mt-2 shrink-0" />
                                         <div>
                                             <p className="text-sm font-medium text-gray-900">System Ready</p>
-                                            <p className="text-xs text-gray-500">Dashboard siap — menunggu aktivitas</p>
+                                            <p className="text-xs text-gray-500">Dashboard ready — waiting for activity</p>
                                         </div>
                                     </div>
                                 ) : (
                                     <div className="space-y-3">
                                         {activity.slice(0, 8).map((item) => {
                                             const configs: Record<string, { dot: string; icon: string; label: string | ((p: any) => string) }> = {
-                                                new_chat: { dot: 'bg-violet-500', icon: '💬', label: 'Pelanggan baru mulai chat' },
+                                                new_chat: { dot: 'bg-violet-500', icon: '💬', label: 'New customer started a chat' },
                                                 booking_created: { dot: 'bg-emerald-500', icon: '📅', label: (p: any) => `Booking: ${p.bookingNumber} — ${p.serviceName}` },
-                                                escalation: { dot: 'bg-red-500', icon: '🚨', label: (p: any) => `Eskalasi: customer ${p.mood}` },
+                                                escalation: { dot: 'bg-red-500', icon: '🚨', label: (p: any) => `Escalation: customer ${p.mood}` },
                                             };
                                             const cfg = configs[item.type];
                                             if (!cfg) return null;
@@ -207,7 +242,7 @@ export default function DashboardPage() {
                                                     <div>
                                                         <p className="text-sm font-medium text-gray-900">{cfg.icon} {label}</p>
                                                         <p className="text-xs text-gray-500">
-                                                            {new Date(item.payload?.timestamp || Date.now()).toLocaleTimeString('id-ID')}
+                                                            {new Date(item.payload?.timestamp || Date.now()).toLocaleTimeString('en-US')}
                                                         </p>
                                                     </div>
                                                 </div>

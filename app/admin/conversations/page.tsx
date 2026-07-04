@@ -40,11 +40,11 @@ function avatarColor(seed: string) {
 function statusPill(status: string) {
     switch (status) {
         case 'ACTIVE':
-            return <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-emerald-100 text-emerald-700">Aktif</span>;
+            return <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-emerald-100 text-emerald-700">Active</span>;
         case 'ENDED':
-            return <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-600">Selesai</span>;
+            return <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-600">Ended</span>;
         case 'REDIRECTED':
-            return <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-rose-100 text-rose-700">Dialihkan</span>;
+            return <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-rose-100 text-rose-700">Handed off</span>;
         default:
             return <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-600">{status}</span>;
     }
@@ -88,24 +88,24 @@ export default function ConversationsPage() {
     };
 
     const filterButtons: { value: typeof status; label: string }[] = [
-        { value: 'ALL', label: 'Semua' },
-        { value: 'ACTIVE', label: 'Aktif' },
-        { value: 'ENDED', label: 'Selesai' },
-        { value: 'REDIRECTED', label: 'Dialihkan' },
+        { value: 'ALL', label: 'All' },
+        { value: 'ACTIVE', label: 'Active' },
+        { value: 'ENDED', label: 'Ended' },
+        { value: 'REDIRECTED', label: 'Handed off' },
     ];
 
     return (
         <div>
             <PageHeader
                 title="Conversations"
-                subtitle="Kelola semua percakapan pelanggan"
+                subtitle="Manage all customer conversations"
                 toggleSidebar={toggle}
                 actions={
                     <div className="flex items-center gap-2">
                         <div className="relative">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                             <Input
-                                placeholder="Cari percakapan..."
+                                placeholder="Search conversations..."
                                 value={search}
                                 onChange={(e) => setSearch(e.target.value)}
                                 className="pl-9 w-64 bg-white border-gray-200 rounded-lg"
@@ -137,10 +137,10 @@ export default function ConversationsPage() {
                 {/* Table header */}
                 <div className="hidden md:grid grid-cols-12 gap-4 px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider bg-gray-50/60 border-b border-gray-100">
                     <div className="col-span-4">Customer</div>
-                    <div className="col-span-4">Pesan Terakhir</div>
+                    <div className="col-span-4">Last Message</div>
                     <div className="col-span-2">Status</div>
-                    <div className="col-span-1">Waktu</div>
-                    <div className="col-span-1 text-right">Aksi</div>
+                    <div className="col-span-1">Time</div>
+                    <div className="col-span-1 text-right">Action</div>
                 </div>
 
                 {/* Rows */}
@@ -150,7 +150,7 @@ export default function ConversationsPage() {
                     </div>
                 ) : conversations.length === 0 ? (
                     <div className="py-16 text-center text-gray-400 text-sm">
-                        Tidak ada percakapan ditemukan
+                        No conversations found
                     </div>
                 ) : (
                     <div className="divide-y divide-gray-100">
@@ -162,7 +162,7 @@ export default function ConversationsPage() {
                                 .slice(0, 2)
                                 .join('')
                                 .toUpperCase();
-                            const lastMsg = conv.lastMessage?.content || 'Belum ada pesan';
+                            const lastMsg = conv.lastMessage?.content || 'No messages yet';
                             const safeMsg = parseMessageContent(lastMsg).text;
                             return (
                                 <div
@@ -184,7 +184,7 @@ export default function ConversationsPage() {
                                     </div>
                                     <div className="md:col-span-2">{statusPill(conv.status)}</div>
                                     <div className="md:col-span-1 text-xs text-gray-500">
-                                        {new Date(conv.startedAt).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' })}
+                                        {new Date(conv.startedAt).toLocaleDateString('en-US', { day: '2-digit', month: 'short' })}
                                     </div>
                                     <div className="md:col-span-1 flex justify-end">
                                         <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-400 hover:text-violet-600">
@@ -200,7 +200,7 @@ export default function ConversationsPage() {
                 {/* Pagination */}
                 <div className="px-5 py-4 border-t border-gray-100 flex items-center justify-between">
                     <div className="text-xs text-gray-500">
-                        Halaman {page} dari {totalPages}
+                        Page {page} of {totalPages}
                     </div>
                     <div className="flex items-center gap-2">
                         <Button
@@ -210,7 +210,7 @@ export default function ConversationsPage() {
                             disabled={page === 1}
                             className="rounded-lg"
                         >
-                            Sebelumnya
+                            Previous
                         </Button>
                         <Button
                             variant="outline"
@@ -219,7 +219,7 @@ export default function ConversationsPage() {
                             disabled={page === totalPages}
                             className="rounded-lg"
                         >
-                            Selanjutnya
+                            Next
                         </Button>
                     </div>
                 </div>
