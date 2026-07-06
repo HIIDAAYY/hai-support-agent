@@ -77,21 +77,21 @@ export default function AgentsPage() {
     };
 
     const stats = [
-        { title: 'Total Agen', value: agents.length, sub: 'Anggota tim aktif', icon: UsersIcon, iconBg: 'bg-violet-100 text-violet-600' },
-        { title: 'Super Admin', value: agents.filter((a) => a.role === 'SUPER_ADMIN').length, sub: 'Akses penuh', icon: Shield, iconBg: 'bg-amber-100 text-amber-600' },
-        { title: 'Aktif Sekarang', value: agents.filter((a) => a.isActive).length, sub: 'Sedang online', icon: User, iconBg: 'bg-emerald-100 text-emerald-600' },
+        { title: 'Total Agents', value: agents.length, sub: 'Active team members', icon: UsersIcon, iconBg: 'bg-violet-100 text-violet-600' },
+        { title: 'Super Admin', value: agents.filter((a) => a.role === 'SUPER_ADMIN').length, sub: 'Full access', icon: Shield, iconBg: 'bg-amber-100 text-amber-600' },
+        { title: 'Active Now', value: agents.filter((a) => a.isActive).length, sub: 'Currently online', icon: User, iconBg: 'bg-emerald-100 text-emerald-600' },
     ];
 
     return (
         <div>
             <PageHeader
-                title="Agen"
-                subtitle="Kelola anggota tim dan akses"
+                title="Agents"
+                subtitle="Manage team members and access"
                 toggleSidebar={toggle}
                 actions={
                     <Button disabled className="bg-violet-600 hover:bg-violet-700 text-white rounded-lg">
                         <UserPlus className="h-4 w-4 mr-2" />
-                        Tambah Agen
+                        Add Agent
                     </Button>
                 }
             />
@@ -116,7 +116,7 @@ export default function AgentsPage() {
 
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
                 <div className="px-5 py-4 border-b border-gray-100">
-                    <h2 className="text-base font-bold text-gray-900">Anggota Tim</h2>
+                    <h2 className="text-base font-bold text-gray-900">Team Members</h2>
                 </div>
 
                 {loading ? (
@@ -126,12 +126,12 @@ export default function AgentsPage() {
                 ) : (
                     <>
                         <div className="hidden md:grid grid-cols-12 gap-4 px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider bg-gray-50/60 border-b border-gray-100">
-                            <div className="col-span-3">Nama</div>
+                            <div className="col-span-3">Name</div>
                             <div className="col-span-2">Username</div>
                             <div className="col-span-3">Email</div>
-                            <div className="col-span-2">Peran</div>
+                            <div className="col-span-2">Role</div>
                             <div className="col-span-1">Status</div>
-                            <div className="col-span-1 text-right">Aksi</div>
+                            <div className="col-span-1 text-right">Action</div>
                         </div>
                         <div className="divide-y divide-gray-100">
                             {agents.map((agent) => {
@@ -153,11 +153,11 @@ export default function AgentsPage() {
                                         <div className="md:col-span-1">
                                             {agent.isActive ? (
                                                 <span className="inline-flex items-center gap-1.5 text-xs text-emerald-600">
-                                                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> Aktif
+                                                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> Active
                                                 </span>
                                             ) : (
                                                 <span className="inline-flex items-center gap-1.5 text-xs text-gray-400">
-                                                    <span className="h-1.5 w-1.5 rounded-full bg-gray-300" /> Nonaktif
+                                                    <span className="h-1.5 w-1.5 rounded-full bg-gray-300" /> Inactive
                                                 </span>
                                             )}
                                         </div>
@@ -175,8 +175,8 @@ export default function AgentsPage() {
             </div>
 
             <div className="text-center text-xs text-gray-400 mt-6 space-y-0.5">
-                <p>Fitur pengelolaan agen akan segera hadir.</p>
-                <p>Saat ini menampilkan agen dari database seed.</p>
+                <p>Agent management is coming soon.</p>
+                <p>Currently showing agents from the seed database.</p>
             </div>
         </div>
     );

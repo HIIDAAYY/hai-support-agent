@@ -78,13 +78,13 @@ export default function SettingsPage() {
     return (
         <div>
             <PageHeader
-                title="Pengaturan"
-                subtitle="Konfigurasi dashboard dan integrasi"
+                title="Settings"
+                subtitle="Configure the dashboard and integrations"
                 toggleSidebar={toggle}
                 actions={
                     <Button onClick={handleSave} disabled={saving} className="bg-violet-600 hover:bg-violet-700 text-white rounded-lg">
                         {saving ? <RefreshCw className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
-                        Simpan Perubahan
+                        Save Changes
                     </Button>
                 }
             />
@@ -92,77 +92,77 @@ export default function SettingsPage() {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
                 <SectionCard
                     icon={SettingsIcon}
-                    title="Pengaturan Umum"
-                    description="Konfigurasi dasar dashboard admin"
+                    title="General Settings"
+                    description="Basic admin dashboard configuration"
                 >
                     <div className="space-y-2">
-                        <Label htmlFor="clinicName" className="text-xs text-gray-600">Nama Klinik</Label>
+                        <Label htmlFor="clinicName" className="text-xs text-gray-600">Business Name</Label>
                         <Input id="clinicName" defaultValue="Glow Aesthetics" className="bg-gray-50 border-gray-200 rounded-lg" />
                     </div>
                     <div className="space-y-2">
-                        <Label htmlFor="timezone" className="text-xs text-gray-600">Zona Waktu</Label>
+                        <Label htmlFor="timezone" className="text-xs text-gray-600">Timezone</Label>
                         <Input id="timezone" defaultValue="Asia/Jakarta (WIB)" disabled className="bg-gray-50 border-gray-200 rounded-lg" />
                     </div>
                     <div className="space-y-2">
-                        <Label htmlFor="language" className="text-xs text-gray-600">Bahasa</Label>
-                        <Input id="language" defaultValue="Indonesian" disabled className="bg-gray-50 border-gray-200 rounded-lg" />
+                        <Label htmlFor="language" className="text-xs text-gray-600">Language</Label>
+                        <Input id="language" defaultValue="English & Indonesian" disabled className="bg-gray-50 border-gray-200 rounded-lg" />
                     </div>
                 </SectionCard>
 
                 <SectionCard
                     icon={Bell}
-                    title="Notifikasi"
-                    description="Atur preferensi notifikasi"
+                    title="Notifications"
+                    description="Manage notification preferences"
                 >
-                    <ToggleRow title="Alert Handoff Baru" desc="Notifikasi saat handoff diminta" badge={<Pill tone="success" label="Aktif" />} />
-                    <ToggleRow title="Alert Eskalasi" desc="Notifikasi untuk percakapan eskalasi" badge={<Pill tone="success" label="Aktif" />} />
-                    <ToggleRow title="Ringkasan Harian" desc="Terima ringkasan analytics harian" badge={<Pill tone="muted" label="Nonaktif" />} />
+                    <ToggleRow title="New Handoff Alert" desc="Notify when a handoff is requested" badge={<Pill tone="success" label="On" />} />
+                    <ToggleRow title="Escalation Alert" desc="Notify for escalated conversations" badge={<Pill tone="success" label="On" />} />
+                    <ToggleRow title="Daily Summary" desc="Receive a daily analytics summary" badge={<Pill tone="muted" label="Off" />} />
                 </SectionCard>
 
                 <SectionCard
                     icon={Bot}
-                    title="Konfigurasi AI"
-                    description="Atur perilaku chatbot AI"
+                    title="AI Configuration"
+                    description="Configure AI chatbot behavior"
                 >
                     <div className="space-y-2">
                         <Label className="text-xs text-gray-600">AI Model</Label>
                         <div className="flex items-center gap-2">
-                            <Input defaultValue="Claude 3.5 Sonnet" disabled className="bg-gray-50 border-gray-200 rounded-lg" />
-                            <Pill tone="success" label="Aktif" />
+                            <Input defaultValue="Claude 4.5 Haiku" disabled className="bg-gray-50 border-gray-200 rounded-lg" />
+                            <Pill tone="success" label="Active" />
                         </div>
                     </div>
                     <div className="space-y-2">
-                        <Label className="text-xs text-gray-600">Ambang Auto-Handoff</Label>
+                        <Label className="text-xs text-gray-600">Auto-Handoff Threshold</Label>
                         <Input type="number" defaultValue="3" className="bg-gray-50 border-gray-200 rounded-lg" />
-                        <p className="text-xs text-gray-500">Jumlah kegagalan sebelum menyarankan handoff</p>
+                        <p className="text-xs text-gray-500">Number of failures before suggesting a handoff</p>
                     </div>
                     <div className="space-y-2">
-                        <Label className="text-xs text-gray-600">Gaya Respons</Label>
+                        <Label className="text-xs text-gray-600">Response Style</Label>
                         <Input defaultValue="Professional & Friendly" disabled className="bg-gray-50 border-gray-200 rounded-lg" />
                     </div>
                 </SectionCard>
 
                 <SectionCard
                     icon={Shield}
-                    title="Keamanan"
-                    description="Pengaturan keamanan dan akses"
+                    title="Security"
+                    description="Security and access settings"
                 >
-                    <ToggleRow title="Durasi Sesi" desc="Auto logout setelah tidak aktif" badge={<Pill tone="muted" label="7 hari" />} />
-                    <ToggleRow title="Two-Factor Auth" desc="Lapisan keamanan tambahan" badge={<Pill tone="warning" label="Belum diatur" />} />
-                    <ToggleRow title="Audit Logging" desc="Catat semua aksi admin" badge={<Pill tone="success" label="Aktif" />} />
+                    <ToggleRow title="Session Duration" desc="Auto logout after inactivity" badge={<Pill tone="muted" label="7 days" />} />
+                    <ToggleRow title="Two-Factor Auth" desc="Extra security layer" badge={<Pill tone="warning" label="Not set" />} />
+                    <ToggleRow title="Audit Logging" desc="Log all admin actions" badge={<Pill tone="success" label="On" />} />
                 </SectionCard>
 
                 <SectionCard
                     icon={Database}
                     title="Database"
-                    description="Informasi koneksi database"
+                    description="Database connection info"
                 >
                     <div className="flex items-center justify-between text-sm">
                         <span className="text-gray-500">Status</span>
-                        <Pill tone="success" label="Terhubung" />
+                        <Pill tone="success" label="Connected" />
                     </div>
                     <div className="flex items-center justify-between text-sm">
-                        <span className="text-gray-500">Tipe</span>
+                        <span className="text-gray-500">Type</span>
                         <span className="text-gray-900">PostgreSQL 16</span>
                     </div>
                     <div className="flex items-center justify-between text-sm">
@@ -173,27 +173,27 @@ export default function SettingsPage() {
 
                 <SectionCard
                     icon={MessageSquare}
-                    title="Integrasi"
-                    description="Status layanan terhubung"
+                    title="Integrations"
+                    description="Connected service status"
                 >
                     <div className="flex items-center justify-between text-sm">
                         <span className="text-gray-900">WhatsApp Business</span>
-                        <Pill tone="muted" label="Belum terhubung" />
+                        <Pill tone="muted" label="Not connected" />
                     </div>
                     <div className="flex items-center justify-between text-sm">
                         <span className="text-gray-900">Pinecone (Vector DB)</span>
-                        <Pill tone="success" label="Terhubung" />
+                        <Pill tone="success" label="Connected" />
                     </div>
                     <div className="flex items-center justify-between text-sm">
                         <span className="text-gray-900">Anthropic API</span>
-                        <Pill tone="success" label="Terhubung" />
+                        <Pill tone="success" label="Connected" />
                     </div>
                 </SectionCard>
             </div>
 
             <div className="text-center text-xs text-gray-400 mt-6 space-y-0.5">
-                <p>Beberapa pengaturan bersifat read-only di mode demo.</p>
-                <p>Hubungi administrator untuk mengubah konfigurasi sistem.</p>
+                <p>Some settings are read-only in demo mode.</p>
+                <p>Contact an administrator to change system configuration.</p>
             </div>
         </div>
     );
