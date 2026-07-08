@@ -64,6 +64,8 @@ interface ClinicRoute {
 }
 
 const CLINICS: ClinicRoute[] = [
+  // English / USD demo tenant — the default for foreign-buyer demos.
+  { id: "lumina-medspa", name: "Lumina Medspa (San Francisco)", patterns: [/lumina/, /med\s*spa/] },
   { id: "ira-skincare", name: "dr. Ira Skin Care & Slimming", patterns: [/\bira\b/] },
   { id: "beauty-palace", name: "Beauty Palace Aesthetic & Hair Transplant", patterns: [/beauty\s*palace/, /\bpalace\b/] },
   { id: "drkhe-co", name: "dr. Khé & Co", patterns: [/\bkh[eé]\b/, /khe\s*&?\s*co/, /khenco/] },
@@ -71,10 +73,14 @@ const CLINICS: ClinicRoute[] = [
   { id: "eva-mulia", name: "Eva Mulia Clinic", patterns: [/eva\s*mulia/, /\beva\b/] },
 ];
 
-// Kalau di-set (mis. DEMO_CLINIC_ID=ira-skincare), semua pengirim baru yang tak
-// menyebut kata kunci langsung dipaksa ke klinik ini. Kosongkan (default) supaya
-// bot menanyakan klinik mana saat kata kunci tak ditemukan.
-const FORCE_CLINIC_ID = process.env.DEMO_CLINIC_ID || "";
+// Klinik default untuk pengirim baru yang tak menyebut kata kunci. Default ke
+// lumina-medspa (Inggris/USD) supaya demo untuk klien asing langsung berbahasa
+// Inggris. Klinik Indonesia tetap bisa diakses via kata kunci (mis. "ira").
+// Override dengan DEMO_CLINIC_ID di .env.local; set "" untuk kembali ke mode tanya.
+const FORCE_CLINIC_ID =
+  process.env.DEMO_CLINIC_ID !== undefined
+    ? process.env.DEMO_CLINIC_ID
+    : "lumina-medspa";
 
 // Perintah untuk keluar / pindah dari klinik yang sedang aktif.
 const RESET_PATTERN =
@@ -203,12 +209,26 @@ client.on("message", async (msg: any) => {
   }
 
   // PENGAMAN 2: kalau allowlist di-set, hanya layani nomor yang SAMA PERSIS.
-  if (ALLOWLIST.length) {
-    const fromDigits = String(msg.from).replace(/\D/g, "");
-    if (!ALLOWLIST.includes(fromDigits)) {
-      console.log(`🚫 Abaikan (di luar allowlist): ${msg.from}`);
-      return;
-    }
+  // WhatsApp kini sering melaporkan pengirim sebagai ID "@lid" yang OPAK
+  // (mis. 192672300048461@lid), BUKAN nomor telepon. Kalau kita cek allowlist
+  // pakai msg.from mentah, nomor telepon di WA_ALLOWLIST tidak akan pernah cocok
+  // dan SEMUA pesan tertolak. Jadi kita resolusikan dulu ke nomor telepon asli.
+  let senderNumber = String(msg.from).replace(/\D/g, "");
+  try {
+    const contact = await msg.getContact();
+    const resolved = String(contact?.number || contact?.id?.user || "").replace(/\D/g, "");
+    if (resolved) senderNumber = resolved;
+  } catch {
+    // gagal resolve — pakai fallback digits dari msg.from
+  }
+  console.log(`👤 Pesan dari nomor: ${senderNumber}  (raw: ${msg.from})`);
+
+  if (ALLOWLIST.length && !ALLOWLIST.includes(senderNumber)) {
+    console.log(
+      `🚫 Abaikan (di luar allowlist): ${senderNumber} — kalau ini nomor tes kamu, ` +
+      `tambahkan ke WA_ALLOWLIST di .env.local lalu restart \`npm run whatsapp\`.`
+    );
+    return;
   }
 
   const body = (msg.body || "").trim();
@@ -250,12 +270,15 @@ client.on("message", async (msg: any) => {
     clinic = detected;
     senderClinic.set(msg.from, clinic);
     histories.delete(msg.from); // mulai sesi bersih untuk klinik ini
-    await safeSend(
-      msg.from,
-      `Halo! 👋 Kamu terhubung ke demo *${clinic.name}* ✨\n` +
-        `Tanya apa aja: jam buka, harga, layanan, booking — dijawab 24 jam oleh AI.\n` +
-        `_(ketik "ganti klinik" kalau mau coba klinik lain)_`
-    );
+    const greeting =
+      clinic.id === "lumina-medspa"
+        ? `Hi! 👋 You're connected to the *${clinic.name}* demo ✨\n` +
+          `Ask me anything — treatments, pricing, hours, or booking — answered instantly, 24/7 by AI.\n` +
+          `_(type "menu" to try a different demo)_`
+        : `Halo! 👋 Kamu terhubung ke demo *${clinic.name}* ✨\n` +
+          `Tanya apa aja: jam buka, harga, layanan, booking — dijawab 24 jam oleh AI.\n` +
+          `_(ketik "ganti klinik" kalau mau coba klinik lain)_`;
+    await safeSend(msg.from, greeting);
     return; // pesan pemicu (mis. "coba demo Klinik Ira") tak perlu masuk RAG
   }
 

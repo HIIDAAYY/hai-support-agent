@@ -15,19 +15,22 @@ const RightSidebar = dynamic(() => import("@/components/RightSidebar"), {
   ssr: false,
 });
 
+// Default demo tenant for the bare URL (no ?clinicId=).
+// lumina-medspa is English/USD and fully prompt-driven (no DB/Pinecone
+// dependency), so it gives the best first impression for international
+// clients and is the most cold-start-resilient tenant. Other tenants
+// stay reachable via ?clinicId=... (e.g. ?clinicId=glow-clinic).
+const DEFAULT_CLINIC_ID = "lumina-medspa";
+
 function ChatWrapper() {
   const searchParams = useSearchParams();
 
-  // Get clinicId from URL parameter
+  // Get clinicId from URL parameter, falling back to the default demo tenant.
   // Example: http://localhost:3000?clinicId=glow-clinic
-  const clinicId = searchParams.get('clinicId') || null;
+  const clinicId = searchParams.get('clinicId') || DEFAULT_CLINIC_ID;
 
   // Log for debugging
-  if (clinicId) {
-    console.log(`🏥 Bot configured for clinic: ${clinicId}`);
-  } else {
-    console.log('⚠️  No clinicId specified - bot will respond to all clinics');
-  }
+  console.log(`🏥 Bot configured for clinic: ${clinicId}`);
 
   return (
     <ErrorBoundary>

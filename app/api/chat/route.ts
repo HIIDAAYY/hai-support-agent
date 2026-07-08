@@ -198,12 +198,13 @@ export async function POST(req: Request) {
   // Extract data from the request body
   let { messages, model, knowledgeBaseId, sessionId, businessContext, customerId, clinicId } = await req.json();
 
-  // 🔑 CLINIC CONTEXT: Use provided clinicId or default to "glow-clinic"
-  // This ensures bot always has a clinic context for booking operations
-  // Example: clinicId = "glow-clinic" → Bot only knows about Glow Aesthetics
+  // 🔑 CLINIC CONTEXT: Use provided clinicId or default to "lumina-medspa"
+  // This ensures bot always has a clinic context for booking operations.
+  // lumina-medspa (English/USD, prompt-driven, no DB dependency) is the
+  // default demo tenant for the bare URL — best first impression for
+  // international clients and the most cold-start-resilient path.
   if (!clinicId) {
-    // Default to glow-clinic when no clinicId is specified
-    clinicId = "glow-clinic";
+    clinicId = "lumina-medspa";
     console.log(`🏥 No clinicId specified - defaulting to: ${clinicId}`);
   }
 
