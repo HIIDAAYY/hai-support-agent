@@ -1,22 +1,6 @@
-import {
-  BedrockAgentRuntimeClient,
-  RetrieveCommand,
-  RetrieveCommandInput,
-} from "@aws-sdk/client-bedrock-agent-runtime";
 import { queryPineconeWithText, queryPineconeWithTextInNamespace } from "@/lib/pinecone";
 import { ragCache } from "./rag-cache";
 import { logger } from "./logger";
-
-console.log("🔑 Have AWS AccessKey?", !!process.env.BAWS_ACCESS_KEY_ID);
-console.log("🔑 Have AWS Secret?", !!process.env.BAWS_SECRET_ACCESS_KEY);
-
-const bedrockClient = new BedrockAgentRuntimeClient({
-  region: "us-east-1", // Make sure this matches your Bedrock region
-  credentials: {
-    accessKeyId: process.env.BAWS_ACCESS_KEY_ID!,
-    secretAccessKey: process.env.BAWS_SECRET_ACCESS_KEY!,
-  },
-});
 
 export interface RAGSource {
   id: string;
@@ -109,75 +93,6 @@ export async function retrieveContextFromPinecone(
     };
   } catch (error) {
     logger.error("Pinecone RAG Error", error);
-    return { context: "", isRagWorking: false, ragSources: [] };
-  }
-}
-
-/**
- * Retrieve context from AWS Bedrock Knowledge Base
- */
-export async function retrieveContextFromBedrock(
-  query: string,
-  knowledgeBaseId: string,
-  n: number = 3,
-): Promise<{
-  context: string;
-  isRagWorking: boolean;
-  ragSources: RAGSource[];
-}> {
-  try {
-    if (!knowledgeBaseId) {
-      console.error("knowledgeBaseId is not provided");
-      return {
-        context: "",
-        isRagWorking: false,
-        ragSources: [],
-      };
-    }
-
-    const input: RetrieveCommandInput = {
-      knowledgeBaseId: knowledgeBaseId,
-      retrievalQuery: { text: query },
-      retrievalConfiguration: {
-        vectorSearchConfiguration: { numberOfResults: n },
-      },
-    };
-
-    const command = new RetrieveCommand(input);
-    const response = await bedrockClient.send(command);
-
-    // Parse results
-    const rawResults = response?.retrievalResults || [];
-    const ragSources: RAGSource[] = rawResults
-      .filter((res: any) => res.content && res.content.text)
-      .map((result: any, index: number) => {
-        const uri = result?.location?.s3Location?.uri || "";
-        const fileName = uri.split("/").pop() || `Source-${index}.txt`;
-
-        return {
-          id:
-            result.metadata?.["x-amz-bedrock-kb-chunk-id"] || `chunk-${index}`,
-          fileName: fileName.replace(/_/g, " ").replace(".txt", ""),
-          snippet: result.content?.text || "",
-          score: result.score || 0,
-        };
-      })
-      .slice(0, 1);
-
-    console.log("🔍 Parsed Bedrock RAG Sources:", ragSources);
-
-    const context = rawResults
-      .filter((res: any) => res.content && res.content.text)
-      .map((res: any) => res.content.text)
-      .join("\n\n");
-
-    return {
-      context,
-      isRagWorking: true,
-      ragSources,
-    };
-  } catch (error) {
-    console.error("❌ Bedrock RAG Error:", error);
     return { context: "", isRagWorking: false, ragSources: [] };
   }
 }
@@ -473,11 +388,11 @@ export function detectKnowledgeBase(
 }
 
 /**
- * Main retrieve context function - auto-selects between Pinecone (with optional filter) and Bedrock
+ * Main retrieve context function - routes every lookup to Pinecone
  * - knowledgeBaseId="clinic": Use Pinecone filtered to clinic sources
  * - knowledgeBaseId={ kb: "clinic", clinicId: "..." }: Use Pinecone filtered to specific clinic
  * - knowledgeBaseId=undefined: NO KB used (user must ask clinic questions)
- * - knowledgeBaseId=other: Use AWS Bedrock
+ * - knowledgeBaseId=other: Use Pinecone filtered to that named source
  */
 export async function retrieveContext(
   query: string,
@@ -527,9 +442,8 @@ export async function retrieveContext(
     return { context: "", isRagWorking: false, ragSources: [] };
   }
 
-  // Use Bedrock if knowledgeBaseId is provided (for other knowledge bases)
-  console.log("☁️ Using AWS Bedrock for RAG");
-  result = await retrieveContextFromBedrock(query, knowledgeBaseId as string, n);
+  // Any other named source - query Pinecone filtered to that source
+  result = await retrieveContextFromPinecone(query, n, knowledgeBaseId as string);
   ragCache.set(knowledgeBaseId, query, result);
   return result;
 }
