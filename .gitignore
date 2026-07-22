@@ -92,3 +92,6 @@ scratch/
 
 # personal dev/strategy notes (keep out of public repo)
 PERUBAHAN-DEMO-buyer-asing.md
+
+# local Claude Code config
+.claude/

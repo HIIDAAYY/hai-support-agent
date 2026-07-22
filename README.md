@@ -32,7 +32,7 @@ It's **multi-tenant**: the same deployment serves many businesses at once, each 
 - **Multi-tenant routing** — per-client identity, contact info, and scope. Add a new business by dropping in a KB file — no code changes.
 - **Human handoff** — auto-detects complex or frustrated conversations, escalates to a live agent, and notifies via email (Resend). Agents take over in a real-time chat view.
 - **Admin dashboard** — conversation monitoring, live SSE chat, analytics, sales funnel, and a self-improving "auto-learning" loop that turns resolved tickets into new KB entries.
-- **WhatsApp integration** — Twilio WhatsApp Business API + `whatsapp-web.js` for real-time messaging.
+- **WhatsApp integration** — official WhatsApp Business API (Twilio; Meta Cloud API supported) for real-time messaging.
 - **Multilingual** — auto-detects and replies in Indonesian or English, with customer-mood and category detection.
 
 ## Tech stack
@@ -44,7 +44,7 @@ It's **multi-tenant**: the same deployment serves many businesses at once, each 
 | RAG | Pinecone vector DB + Pinecone Inference embeddings (multilingual-e5-large) |
 | Data | PostgreSQL + Prisma ORM |
 | Realtime | Server-Sent Events (live chat & activity feed) |
-| Integrations | Twilio / whatsapp-web.js · Resend (email) |
+| Integrations | WhatsApp Business API (Twilio · Meta Cloud API) · Resend (email) |
 | UI | Tailwind CSS · shadcn/ui · Recharts |
 | Deploy | Vercel (serverless + cron) |
 
@@ -97,7 +97,7 @@ This project started from Anthropic's open-source [Customer Support Agent quicks
 - **Multi-tenant routing** — per-client identity, knowledge base, contact info, and scope
 - **Appointment booking** and native Tool Use for live data (orders, payments, inventory availability)
 - **Human handoff** — escalation detection, real-time SSE admin chat, and email alerts
-- **WhatsApp integration** (Twilio · whatsapp-web.js)
+- **WhatsApp integration** — official WhatsApp Business API (Twilio · Meta Cloud API)
 - **Admin dashboard** — monitoring, analytics, and an auto-learning KB loop
 - End-to-end **branding, multilingual UX, and demo knowledge bases**
 
