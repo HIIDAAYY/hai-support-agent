@@ -66,8 +66,8 @@ Deeper docs live in [`/docs`](docs/README.md) — architecture, multi-tenancy, R
 ## Run locally
 
 ```bash
-git clone https://github.com/HIIDAAYY/Anthropic-Chatbot.git
-cd Anthropic-Chatbot/customer-support-agent
+git clone https://github.com/HIIDAAYY/hai-support-agent.git
+cd hai-support-agent
 npm install
 cp .env.example .env.local   # fill in your API keys
 docker-compose up -d          # local PostgreSQL
@@ -88,3 +88,17 @@ Deploys to **Vercel** in a few clicks — see [`docs/VERCEL_DEPLOYMENT_GUIDE.md`
 ## About
 
 Built by [@HIIDAAYY](https://github.com/HIIDAAYY). Available for freelance work — AI chatbots, RAG systems, and customer-support automation for SMBs. This repo is a portfolio demonstration; production client deployments are private.
+
+## Credits & attribution
+
+This project started from Anthropic's open-source [Customer Support Agent quickstart](https://github.com/anthropics/anthropic-quickstarts/tree/main/customer-support-agent) (MIT-licensed) and was substantially extended into a multi-tenant product. Building on that foundation, the work in this repo adds:
+
+- Migration to **Pinecone RAG** with Pinecone Inference embeddings (`multilingual-e5-large`) for grounded, multilingual answers
+- **Multi-tenant routing** — per-client identity, knowledge base, contact info, and scope
+- **Appointment booking** and native Tool Use for live data (orders, payments, inventory availability)
+- **Human handoff** — escalation detection, real-time SSE admin chat, and email alerts
+- **WhatsApp integration** (Twilio · whatsapp-web.js)
+- **Admin dashboard** — monitoring, analytics, and an auto-learning KB loop
+- End-to-end **branding, multilingual UX, and demo knowledge bases**
+
+The original quickstart's MIT license is retained in [`LICENSE`](LICENSE).
