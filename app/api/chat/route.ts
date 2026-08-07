@@ -36,6 +36,7 @@ import {
   getTenantBasics,
   isStrictScopeTenant,
   isPromptOnlyTenant,
+  tenantSupportsBookingTools,
 } from "@/app/lib/tenants";
 
 const anthropic = new Anthropic({
@@ -1576,12 +1577,20 @@ ${clinicBasics
     const dynamicMaxTokens = getMaxTokensForQuery(latestMessage, true);
     console.log(`🎯 Dynamic max_tokens: ${dynamicMaxTokens} (query length: ${latestMessage.length})`);
 
-    // Prompt-only demo tenants (see isPromptOnlyDemo above) run tool-free: exposing
-    // tools makes the model call list_services, which returns another clinic's (IDR)
-    // data and overrides the USD menu in their system prompt.
-    const requestTools = isPromptOnlyDemo ? undefined : BOT_TOOLS;
-    if (isPromptOnlyDemo) {
-      console.log(`🧾 Prompt-only demo tenant (${activeClinicId}) — tools disabled`);
+    // Booking tools are exposed only to tenants whose own services and slots are
+    // in the database. Every other clinic is mapped to Glow's business record,
+    // so list_services would hand back Glow's 15 treatments, Glow's prices and
+    // Glow's business name — which the model then reports as this clinic's. That
+    // is how Airin Skin Clinic came to describe itself as "Klinik Glow
+    // Aesthetics Jakarta". Without tools it answers from its own knowledge base,
+    // where its real prices live. See tenantSupportsBookingTools in
+    // app/lib/tenants.ts to turn this on for a tenant once it is seeded.
+    const toolsEnabled = tenantSupportsBookingTools(activeClinicId);
+    const requestTools = toolsEnabled ? BOT_TOOLS : undefined;
+    if (!toolsEnabled) {
+      console.log(
+        `🧾 ${activeClinicId} has no database record of its own — booking tools disabled`
+      );
     }
 
     let response = await retryWithBackoff(

@@ -46,6 +46,23 @@ export interface Tenant {
   strictScope?: boolean;
 
   /**
+   * True only when the database holds THIS tenant's own services and slots.
+   *
+   * Every demo clinic is mapped to Glow's business record for booking, so
+   * list_services returns Glow's 15 treatments — and Glow's business name —
+   * whichever clinic the visitor is looking at. Airin Skin Clinic answered a
+   * services question with Glow's catalog and Glow's prices, then reported its
+   * location as "Klinik Glow Aesthetics Jakarta", because the tool result said
+   * so.
+   *
+   * Booking tools are therefore offered only where this is true. Everyone else
+   * answers from their own knowledge base, which holds their real prices.
+   * Quoting a prospect a competitor's price list is worse than having no live
+   * booking in the demo.
+   */
+  hasOwnDatabaseRecord?: boolean;
+
+  /**
    * The WhatsApp Business number that routes to THIS tenant — i.e. the number
    * customers message, which arrives as Twilio's `To` field on the webhook.
    *
@@ -139,6 +156,8 @@ export const TENANTS: Record<string, Tenant> = {
   "glow-clinic": {
     name: "Klinik Glow Aesthetics",
     contact: { whatsapp: "+62 811-1900-042", emergency: "+62 811-1900-042" },
+    // The only tenant whose services and slots are actually seeded (prisma/seed.ts).
+    hasOwnDatabaseRecord: true,
     basics: (contact) => `- Location: Jl. Senopati No. 42, Kebayoran Baru, South Jakarta (near Senopati / Blok M).
 - Opening hours: Mon–Sat 09:00–20:00, Sun 10:00–18:00 (WIB). Closed on public holidays.
 - Contact: WhatsApp ${contact.whatsapp} · appointments can also be booked directly in this chat.
@@ -300,4 +319,14 @@ export function getTenantIdByWhatsAppNumber(
  */
 export function isPromptOnlyTenant(clinicId: string): boolean {
   return typeof TENANTS[clinicId]?.promptOnlyIntro === "function";
+}
+
+/**
+ * Whether to expose the booking tools for this tenant.
+ *
+ * Off unless the database actually holds this tenant's own services — see
+ * hasOwnDatabaseRecord. Unregistered ids get nothing, which is the safe default.
+ */
+export function tenantSupportsBookingTools(clinicId: string): boolean {
+  return TENANTS[clinicId]?.hasOwnDatabaseRecord === true;
 }
