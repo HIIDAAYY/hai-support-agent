@@ -69,7 +69,7 @@ export function resolveTenantIds(args: string[]): string[] {
  * Display name for a tenant, read from its FAQ file.
  *
  * This is used only as the source label in the knowledge-base sidebar — the
- * name the bot actually speaks comes from getClinicNameById() in the chat
+ * name the bot actually speaks comes from getTenantName() in the chat
  * route. Prefers the `title:` frontmatter, falls back to the `# ` heading,
  * then to the id itself.
  */

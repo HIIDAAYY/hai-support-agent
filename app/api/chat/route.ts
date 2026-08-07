@@ -28,6 +28,15 @@ import {
 import { responseCache } from "@/app/lib/response-cache";
 import { getSimpleResponse } from "@/app/lib/simple-responses";
 import { logger } from "@/app/lib/logger";
+import {
+  DEFAULT_TENANT_ID,
+  getTenant,
+  getTenantName,
+  getTenantContact,
+  getTenantBasics,
+  isStrictScopeTenant,
+  isPromptOnlyTenant,
+} from "@/app/lib/tenants";
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -106,80 +115,9 @@ function sanitizeHeaderValue(value: string): string {
   return value.replace(/[^\x00-\x7F]/g, "");
 }
 
-// Helper function to get clinic name by ID
-// Input: clinicId string
-// Output: full clinic name for system prompt
-function getClinicNameById(clinicId: string): string {
-  const clinicMap: Record<string, string> = {
-    "lumina-medspa": "Lumina Medspa",
-    "glow-clinic": "Klinik Glow Aesthetics",
-    "airin-skin": "Airin Skin Clinic",
-    "beautylosophy-clinic": "The Clinic Beautylosophy",
-    "beyoutiful-clinic": "Beyoutiful Clinic",
-    "b-clinic": "B Clinic Multi Medika",
-    "click-house": "Click House",
-    "derma-express": "Derma Express",
-    "dermies-max": "Dermies Max",
-    "euroskinlab": "Euroskinlab",
-    "gloskin-aesthetic": "Gloskin Aesthetic",
-    "jakarta-aesthetic": "Jakarta Aesthetic Clinic",
-    "jasper-skincare": "Jasper Skincare",
-    "kusuma-beauty": "Kusuma Beauty Clinic",
-    "maharis-clinic": "Maharis Clinic",
-    "nmw-skincare": "NMW Skin Care",
-    "ovela-clinic": "Ovela Clinic",
-    "promec-clinic": "Promec Clinic",
-    "queen-plastic": "Queen Plastic Surgery",
-    "sozo-skin": "Sozo Skin Clinic",
-    "youth-beauty": "Youth & Beauty Clinic",
-    "zap-premiere": "ZAP Premiere",
-    "sample-ortodonti": "Klinik Ortodonti & Behel Gigi",
-    "sample-spkk": "Klinik Spesialis Kulit & Kelamin (SpKK)",
-    "sample-spgk": "Klinik Spesialis Gizi Klinik (SpGK)",
-    "sample-hijab-shop": "UrbanStyle Hijab Shop",
-    "vorta-clinic": "Vorta Beauty Clinic", // DEMO (temporary)
-    // DEMO (temporary) — 5 klinik riset
-    "ira-skincare": "dr. Ira Skin Care & Slimming",
-    "beauty-palace": "Beauty Palace Aesthetic & Hair Transplant Center",
-    "drkhe-co": "dr. Khé & Co",
-    "estetika-dental": "Estetika Dental Clinic",
-    "eva-mulia": "Eva Mulia Clinic",
-    "nanoglow": "NanoGlow Aesthetic Clinic",
-    "e3a-emily": "E3A Emily Aesthetics & Anti Aging Clinic",
-    "dc-beauty": "DC Beauty Clinic",
-    "dr-yustini": "Klinik dr. Yustini",
-    "farla": "Farla Aesthetic Clinic",
-  };
-  return clinicMap[clinicId] || "Klinik Kecantikan & Gigi (Beauty & Dental Clinic)";
-}
-
-// Kontak per-klinik untuk eskalasi (komplain/medis/refund). Tanpa ini, bot
-// memakai nomor demo "Glow" yang di-hardcode di system prompt untuk SEMUA klinik.
-// Klinik yang tak terdaftar tetap memakai default lama (perilaku tak berubah).
-function getClinicContactById(clinicId: string): { whatsapp: string; emergency: string } {
-  const contactMap: Record<string, { whatsapp: string; emergency: string }> = {
-    "lumina-medspa": { whatsapp: "+1 (415) 555-0142", emergency: "+1 (415) 555-0142" },
-    "glow-clinic": { whatsapp: "+62 811-1900-042", emergency: "+62 811-1900-042" },
-    "vorta-clinic": { whatsapp: "+62 811-8883-318", emergency: "+62 811-8883-318" },
-    "ira-skincare": { whatsapp: "0821-3191-6900", emergency: "0821-3191-6900" },
-    "beauty-palace": { whatsapp: "+62 852-8088-8118", emergency: "+62 852-8088-8118" },
-    "drkhe-co": { whatsapp: "0813-8748-6516", emergency: "0813-8748-6516" },
-    "estetika-dental": { whatsapp: "0812-1263-1323", emergency: "0812-1263-1323" },
-    "eva-mulia": { whatsapp: "0878-4851-6888", emergency: "0878-4851-6888" },
-    "beautylosophy-clinic": { whatsapp: "+62 896-0807-6000", emergency: "+62 896-0807-6000" },
-    "nanoglow": { whatsapp: "0851-1132-0929", emergency: "0851-1132-0929" },
-    "e3a-emily": { whatsapp: "0817-9988-322", emergency: "0817-9988-322" },
-    "dc-beauty": { whatsapp: "0816-971-169", emergency: "0816-971-169" },
-    "dr-yustini": { whatsapp: "0812-8045-6625", emergency: "0812-8045-6625" },
-    "farla": { whatsapp: "0812-1108-5805", emergency: "0812-1108-5805" },
-  };
-  return (
-    contactMap[clinicId] || {
-      whatsapp: "+62 812-8888-5555",
-      emergency: "+62 811-9999-5555",
-    }
-  );
-}
+// Clinic names, contacts, basics and per-tenant prompt flags now live in
+// app/lib/tenants.ts — see getTenantName / getTenantContact / getTenantBasics /
+// isStrictScopeTenant / isPromptOnlyTenant, imported above.
 
 // Helper function to log timestamps for performance measurement
 // Input: label string and start time
@@ -198,13 +136,11 @@ export async function POST(req: Request) {
   // Extract data from the request body
   let { messages, model, knowledgeBaseId, sessionId, businessContext, customerId, clinicId } = await req.json();
 
-  // 🔑 CLINIC CONTEXT: Use provided clinicId or default to "glow-clinic"
-  // This ensures bot always has a clinic context for booking operations.
-  // glow-clinic (Indonesian/IDR) is the default demo tenant for the bare URL.
-  // It is DB/Pinecone-backed, so it exercises the full RAG + booking-tool path.
-  // lumina-medspa stays reachable via ?clinicId=lumina-medspa.
+  // 🔑 CLINIC CONTEXT: Use provided clinicId or fall back to the default tenant
+  // (see DEFAULT_TENANT_ID in app/lib/tenants.ts). This ensures the bot always
+  // has a clinic context for booking operations.
   if (!clinicId) {
-    clinicId = "glow-clinic";
+    clinicId = DEFAULT_TENANT_ID;
     console.log(`🏥 No clinicId specified - defaulting to: ${clinicId}`);
   }
 
@@ -401,7 +337,7 @@ export async function POST(req: Request) {
       // Enhanced logging for multi-clinic detection
       if (typeof detectedKb === "object" && "clinicId" in detectedKb) {
         const clinicLog = detectedKb.clinicId
-          ? `${detectedKb.kb.toUpperCase()} - ${getClinicNameById(detectedKb.clinicId)}`
+          ? `${detectedKb.kb.toUpperCase()} - ${getTenantName(detectedKb.clinicId)}`
           : `${detectedKb.kb.toUpperCase()} (Generic - All Clinics)`;
         console.log(`🎯 Auto-detected Knowledge Base: ${clinicLog}`);
 
@@ -423,7 +359,7 @@ export async function POST(req: Request) {
           if (savedClinicId) {
             knowledgeBaseId = { kb: "clinic", clinicId: savedClinicId };
             console.log(`🔄 Retrieved clinic from conversation history: ${savedClinicId}`);
-            console.log(`🎯 Using saved Knowledge Base: CLINIC - ${getClinicNameById(savedClinicId)}`);
+            console.log(`🎯 Using saved Knowledge Base: CLINIC - ${getTenantName(savedClinicId)}`);
           }
         } catch (error) {
           console.error("Error retrieving saved clinic context:", error);
@@ -459,161 +395,29 @@ export async function POST(req: Request) {
         specificClinicId = knowledgeBaseId.clinicId;
       }
 
-      // If specific clinic detected, create business context with REAL database ID for bookings
-      // All demo clinics map to the same Glow Clinic database record for actual booking operations
+      // If a specific clinic is detected, build its business context. Every demo
+      // clinic maps to the same Glow Clinic database record for actual booking
+      // operations — only the display name differs, and that comes from the
+      // tenant registry.
+      //
+      // A clinicBusinessMap listing 22 clinics explicitly used to sit here. Each
+      // entry was identical to this object: same businessId, same type, same
+      // settings, and a businessName that already matched getTenantName(id). It
+      // was 134 lines that could only ever produce what this does.
+      //
+      // Deriving the name (rather than requiring an entry) is what keeps a clinic
+      // from falling through to the Glow fallback below and making the bot adopt
+      // the "Klinik Glow Aesthetics" identity intermittently.
       if (specificClinicId && glowClinic) {
-        const clinicBusinessMap: Record<string, any> = {
-          "glow-clinic": {
-            businessId: glowClinic.id,
-            businessName: "Klinik Glow Aesthetics",
-            businessType: "BEAUTY_CLINIC",
-            settings: glowClinic.settings,
-          },
-          "vorta-clinic": {
-            // DEMO (temporary) — maps to Glow's DB record for booking ops only
-            businessId: glowClinic.id,
-            businessName: "Vorta Beauty Clinic",
-            businessType: "BEAUTY_CLINIC",
-            settings: glowClinic.settings,
-          },
-          "airin-skin": {
-            businessId: glowClinic.id,
-            businessName: "Airin Skin Clinic",
-            businessType: "BEAUTY_CLINIC",
-            settings: glowClinic.settings,
-          },
-          "beautylosophy-clinic": {
-            businessId: glowClinic.id,
-            businessName: "The Clinic Beautylosophy",
-            businessType: "BEAUTY_CLINIC",
-            settings: glowClinic.settings,
-          },
-          "beyoutiful-clinic": {
-            businessId: glowClinic.id,
-            businessName: "Beyoutiful Clinic",
-            businessType: "BEAUTY_CLINIC",
-            settings: glowClinic.settings,
-          },
-          "b-clinic": {
-            businessId: glowClinic.id,
-            businessName: "B Clinic Multi Medika",
-            businessType: "BEAUTY_CLINIC",
-            settings: glowClinic.settings,
-          },
-          "click-house": {
-            businessId: glowClinic.id,
-            businessName: "Click House",
-            businessType: "BEAUTY_CLINIC",
-            settings: glowClinic.settings,
-          },
-          "derma-express": {
-            businessId: glowClinic.id,
-            businessName: "Derma Express",
-            businessType: "BEAUTY_CLINIC",
-            settings: glowClinic.settings,
-          },
-          "dermies-max": {
-            businessId: glowClinic.id,
-            businessName: "Dermies Max",
-            businessType: "BEAUTY_CLINIC",
-            settings: glowClinic.settings,
-          },
-          "euroskinlab": {
-            businessId: glowClinic.id,
-            businessName: "Euroskinlab",
-            businessType: "BEAUTY_CLINIC",
-            settings: glowClinic.settings,
-          },
-          "gloskin-aesthetic": {
-            businessId: glowClinic.id,
-            businessName: "Gloskin Aesthetic",
-            businessType: "BEAUTY_CLINIC",
-            settings: glowClinic.settings,
-          },
-          "jakarta-aesthetic": {
-            businessId: glowClinic.id,
-            businessName: "Jakarta Aesthetic Clinic",
-            businessType: "BEAUTY_CLINIC",
-            settings: glowClinic.settings,
-          },
-          "jasper-skincare": {
-            businessId: glowClinic.id,
-            businessName: "Jasper Skincare",
-            businessType: "BEAUTY_CLINIC",
-            settings: glowClinic.settings,
-          },
-          "kusuma-beauty": {
-            businessId: glowClinic.id,
-            businessName: "Kusuma Beauty Clinic",
-            businessType: "BEAUTY_CLINIC",
-            settings: glowClinic.settings,
-          },
-          "maharis-clinic": {
-            businessId: glowClinic.id,
-            businessName: "Maharis Clinic",
-            businessType: "BEAUTY_CLINIC",
-            settings: glowClinic.settings,
-          },
-          "nmw-skincare": {
-            businessId: glowClinic.id,
-            businessName: "NMW Skin Care",
-            businessType: "BEAUTY_CLINIC",
-            settings: glowClinic.settings,
-          },
-          "ovela-clinic": {
-            businessId: glowClinic.id,
-            businessName: "Ovela Clinic",
-            businessType: "BEAUTY_CLINIC",
-            settings: glowClinic.settings,
-          },
-          "promec-clinic": {
-            businessId: glowClinic.id,
-            businessName: "Promec Clinic",
-            businessType: "BEAUTY_CLINIC",
-            settings: glowClinic.settings,
-          },
-          "queen-plastic": {
-            businessId: glowClinic.id,
-            businessName: "Queen Plastic Surgery",
-            businessType: "BEAUTY_CLINIC",
-            settings: glowClinic.settings,
-          },
-          "sozo-skin": {
-            businessId: glowClinic.id,
-            businessName: "Sozo Skin Clinic",
-            businessType: "BEAUTY_CLINIC",
-            settings: glowClinic.settings,
-          },
-          "youth-beauty": {
-            businessId: glowClinic.id,
-            businessName: "Youth & Beauty Clinic",
-            businessType: "BEAUTY_CLINIC",
-            settings: glowClinic.settings,
-          },
-          "zap-premiere": {
-            businessId: glowClinic.id,
-            businessName: "ZAP Premiere",
-            businessType: "BEAUTY_CLINIC",
-            settings: glowClinic.settings,
-          },
+        businessContext = {
+          businessId: glowClinic.id,
+          businessName: getTenantName(specificClinicId),
+          businessType: "BEAUTY_CLINIC",
+          settings: glowClinic.settings,
         };
-
-        // Use clinicBusinessMap if present, otherwise derive the display name from
-        // the canonical name map (getClinicNameById covers every registered clinic).
-        // Demo clinics aren't all listed in clinicBusinessMap, and without this they
-        // fell through to the Glow fallback below (~line 606), making the bot adopt
-        // the "Klinik Glow Aesthetics" identity intermittently.
-        if (specificClinicId) {
-          businessContext = clinicBusinessMap[specificClinicId] || {
-            businessId: glowClinic.id,
-            businessName: getClinicNameById(specificClinicId),
-            businessType: "BEAUTY_CLINIC",
-            settings: glowClinic.settings,
-          };
-          console.log(
-            `🏥 Auto-detected business for web: ${businessContext.businessName} (mapped to ${glowClinic.name} for bookings)`
-          );
-        }
+        console.log(
+          `🏥 Auto-detected business for web: ${businessContext.businessName} (mapped to ${glowClinic.name} for bookings)`
+        );
       }
 
       // Fallback: If no specific clinic or not found, use Glow clinic
@@ -635,7 +439,7 @@ export async function POST(req: Request) {
         const detectedType = ecommerceClinicIds.includes(clinicId) ? "ECOMMERCE" : "BEAUTY_CLINIC";
         businessContext = {
           businessId: "demo-clinic-id", // Fallback ID for demo
-          businessName: getClinicNameById(clinicId),
+          businessName: getTenantName(clinicId),
           businessType: detectedType,
           settings: null,
         };
@@ -654,7 +458,7 @@ export async function POST(req: Request) {
         const detectedType = ecommerceClinicIds.includes(clinicId) ? "ECOMMERCE" : "BEAUTY_CLINIC";
         businessContext = {
           businessId: "demo-clinic-id",
-          businessName: getClinicNameById(clinicId),
+          businessName: getTenantName(clinicId),
           businessType: detectedType,
           settings: null,
         };
@@ -775,55 +579,28 @@ export async function POST(req: Request) {
   ) {
     activeClinicId = knowledgeBaseId.clinicId as string;
   }
-  const clinicName = getClinicNameById(activeClinicId);
-  const clinicContact = getClinicContactById(activeClinicId);
+  const activeTenant = getTenant(activeClinicId);
+  const clinicName = getTenantName(activeClinicId);
+  const clinicContact = getTenantContact(activeClinicId);
   const clinicWhatsApp = clinicContact.whatsapp;
   const clinicEmergency = clinicContact.emergency;
 
-  // Prompt-only demo tenants (e.g. lumina-medspa) carry their full service menu,
-  // USD pricing and persona inside getSystemPromptIntro() and have NO database
-  // seed. They must NOT receive the glow-clinic IDR catalog / few-shot examples
-  // (below) or the booking tools — either would drag the answer back to Rupiah.
-  const isPromptOnlyDemo = activeClinicId === "lumina-medspa";
+  // Prompt-only demo tenants carry their full service menu, pricing and persona
+  // inside getSystemPromptIntro() and have NO database seed. They must NOT
+  // receive the IDR catalog / few-shot examples (below) or the booking tools —
+  // either would drag the answer back to Rupiah. See app/lib/tenants.ts.
+  const isPromptOnlyDemo = isPromptOnlyTenant(activeClinicId);
 
-  // ── DEMO BUSINESS BASICS ──────────────────────────────────────────────
-  // Location / hours / contact / booking basics for demo tenants. These are
-  // the questions people try FIRST when testing a chatbot, so answering them
-  // confidently makes a much stronger first impression than "not in my KB".
-  // Facts are injected into the system prompt below (dynamicSystemPart).
-  const CLINIC_BASICS: Record<string, string> = {
-    "lumina-medspa": `- Location: 340 Union Street, Suite 200, San Francisco, CA 94133.
-- Opening hours: Mon–Fri 9:00 AM–7:00 PM, Sat 10:00 AM–5:00 PM. Closed Sundays & public holidays.
-- Contact: text/call +1 (415) 555-0142 · you can also book right here in this chat.
-- Booking & reschedule: booking is free; reschedule or cancel up to 24h before your appointment at no charge.
-- Payment: all major cards, Apple Pay, and HSA/FSA accepted. Prices in USD.
-- Lead provider: Dr. Emily Carter, MD (board-certified).`,
-    "glow-clinic": `- Location: Jl. Senopati No. 42, Kebayoran Baru, South Jakarta (near Senopati / Blok M).
-- Opening hours: Mon–Sat 09:00–20:00, Sun 10:00–18:00 (WIB). Closed on public holidays.
-- Contact: WhatsApp ${clinicWhatsApp} · appointments can also be booked directly in this chat.
-- Booking & reschedule: booking is free; reschedule/cancel up to 24h before your slot at no charge.
-- Payment: cards, bank transfer, and e-wallets (GoPay/OVO/QRIS) accepted.
-- Lead doctor: dr. Amanda Kusuma.`,
-  };
-  const clinicBasics = CLINIC_BASICS[activeClinicId] || CLINIC_BASICS["glow-clinic"];
-  // DEMO clinics get a STRICT scope guard so the bot never invents another
-  // clinic's identity/info (fixes the "Glow Aesthetics" leak) and stays on
-  // topic. Other clinics keep their existing behavior untouched.
-  const STRICT_SCOPE_CLINICS = new Set([
-    "vorta-clinic",
-    "ira-skincare",
-    "beauty-palace",
-    "drkhe-co",
-    "estetika-dental",
-    "eva-mulia",
-    "beautylosophy-clinic",
-    "nanoglow",
-    "e3a-emily",
-    "dc-beauty",
-    "dr-yustini",
-    "farla",
-  ]);
-  const scopeGuard = STRICT_SCOPE_CLINICS.has(activeClinicId)
+  // Location / hours / contact / booking basics, injected into the system
+  // prompt below (dynamicSystemPart). These are the questions people try FIRST
+  // when testing a chatbot, so answering them confidently makes a much stronger
+  // first impression than "not in my KB".
+  const clinicBasics = getTenantBasics(activeClinicId);
+
+  // Tenants demoed to real prospects get a STRICT scope guard so the bot never
+  // invents another clinic's identity/info (fixes the "Glow Aesthetics" leak)
+  // and stays on topic. Other clinics keep their existing behavior untouched.
+  const scopeGuard = isStrictScopeTenant(activeClinicId)
     ? `
 
   **STRICT SCOPE — ${clinicName} ONLY:**
@@ -837,42 +614,13 @@ export async function POST(req: Request) {
 
   // Change the system prompt based on knowledge base or business context
   const getSystemPromptIntro = () => {
-    // ── ENGLISH / USD DEMO TENANT (checked FIRST) ─────────────────────────
-    // Must come before the businessContext branch below: lumina-medspa gets a
+    // ── PROMPT-ONLY TENANTS (checked FIRST) ───────────────────────────────
+    // Must come before the businessContext branch below: these tenants get a
     // hardcoded BEAUTY_CLINIC fallback businessContext, which would otherwise
-    // return the Indonesian "Aya" prompt (no menu) and make this branch dead code.
-    if (activeClinicId === "lumina-medspa") {
-      return `You are Ava, the friendly virtual assistant for ${clinicName}, a modern medical spa in San Francisco. You help clients with treatment info, pricing, availability, and booking requests.
-
-  **Voice & style:**
-  - Warm, polished, and concise — like a great front-desk concierge, not a robot.
-  - Always reply in English.
-  - Use the client's name once they share it. Light, tasteful emoji is fine (not every line).
-  - Never say "As an AI" or "As a virtual assistant."
-
-  **Service menu (prices in USD — you HAVE this list, so quote it directly; never say you need to check or defer pricing to a call):**
-  - ✨ Signature HydraFacial — $199 (60 min) — deep cleanse + hydration glow.
-  - 💧 Custom Facial — $149 (50 min) — tailored to your skin concern.
-  - 🎯 Acne Clear Treatment — $179 (60 min) — for active breakouts.
-  - 💎 Microneedling — $299 (75 min) — texture, scars & fine lines.
-  - 🌟 Chemical Peel — $175 (45 min) — brightening & renewal.
-  - 👑 Botox — from $12/unit · Dermal Fillers — from $650/syringe (consult required).
-
-  **When asked about prices or the menu, LIST the relevant items with their USD prices immediately.** Example:
-  Client: "What facials do you have and how much?"
-  You: "Happy to help! ✨ Here are our facials:
-  • Signature HydraFacial — $199 (60 min)
-  • Custom Facial — $149 (50 min)
-  • Acne Clear Treatment — $179 (60 min)
-  Want me to recommend one for your skin, or shall I get you booked in?"
-
-  **Booking (DEMO — lead capture, no live database):**
-  - When a client wants to book, act as a concierge collecting: (1) full name, (2) best phone or email, (3) preferred treatment, date & time.
-  - Then confirm warmly: "Thanks {Name}! I've noted your request for {treatment} on {date}. Our team will text {contact} shortly to confirm. Anything else I can help with? 😊"
-
-  **Safety:** For medical questions (pregnancy, medications, skin conditions), do NOT give definitive medical advice — recommend a consultation with Dr. Emily Carter and offer to book one.
-
-  **Scope:** Only answer for ${clinicName}. If asked about other businesses or unrelated topics, politely redirect back to how you can help with ${clinicName}.`;
+    // return the Indonesian "Aya" prompt (no menu) and make this branch dead
+    // code. The prompt body lives with the tenant in app/lib/tenants.ts.
+    if (activeTenant?.promptOnlyIntro) {
+      return activeTenant.promptOnlyIntro(clinicName);
     }
 
     // BOOKING SYSTEM: If businessContext is provided, customize based on business type
