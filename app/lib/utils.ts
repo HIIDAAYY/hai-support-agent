@@ -1,4 +1,4 @@
-import { queryPineconeWithText, queryPineconeWithTextInNamespace } from "@/lib/pinecone";
+import { queryPineconeWithTextInNamespace } from "@/lib/pinecone";
 import { ragCache } from "./rag-cache";
 import { logger } from "./logger";
 
@@ -10,13 +10,22 @@ export interface RAGSource {
 }
 
 /**
- * Retrieve context from Pinecone vector database
- * Now supports multi-clinic filtering with clinicId!
+ * Retrieve context from Pinecone for ONE clinic.
+ *
+ * Retrieval is namespace-only. There used to be four fallback branches here
+ * that queried Pinecone without a namespace and leaned on a `source: "clinic"`
+ * metadata filter instead. Those reached the unnamed default namespace, which
+ * holds pre-isolation leftovers spanning many clinics — so a single answer
+ * could be assembled from several clinics' knowledge bases at once.
+ *
+ * A request that cannot name its clinic now returns empty context rather than
+ * guessing. For a multi-tenant bot, saying nothing beats answering as the wrong
+ * clinic.
  */
 export async function retrieveContextFromPinecone(
   query: string,
   n: number = 6,
-  sourceFilter?: string | { kb: string; clinicId: string | null }, // Enhanced to support clinic-specific filtering
+  sourceFilter?: string | { kb: string; clinicId: string | null },
 ): Promise<{
   context: string;
   isRagWorking: boolean;
@@ -29,38 +38,23 @@ export async function retrieveContextFromPinecone(
     });
 
     // 🔒 NAMESPACE-BASED ISOLATION (Multi-tenant safe)
-    let results;
-
-    // Handle new object format from detectKnowledgeBase()
-    if (
+    const namespace =
       typeof sourceFilter === "object" &&
       sourceFilter !== null &&
-      "kb" in sourceFilter
-    ) {
-      if (sourceFilter.kb === "clinic" && sourceFilter.clinicId) {
-        // ✅ SPECIFIC CLINIC: Use namespace (RECOMMENDED for multi-tenancy)
-        const namespace = sourceFilter.clinicId; // e.g., "glow-clinic"
-        logger.info(`Using Pinecone NAMESPACE for clinic isolation`, { namespace });
-        results = await queryPineconeWithTextInNamespace(query, namespace, n);
-      } else {
-        // ⚠️ GENERIC CLINIC: Fallback to metadata filter (not recommended for production)
-        logger.warn("Querying ALL clinics - not using namespace isolation");
-        const pineconeFilter = { source: { $eq: "clinic" } };
-        results = await queryPineconeWithText(query, n, pineconeFilter);
-      }
-    } else if (sourceFilter === "clinic") {
-      // Backward compatibility: string "clinic" without specific ID
-      logger.warn("Querying clinic without namespace - using metadata filter");
-      const pineconeFilter = { source: { $eq: "clinic" } };
-      results = await queryPineconeWithText(query, n, pineconeFilter);
-    } else if (sourceFilter) {
-      // For other named sources (string)
-      const pineconeFilter = { source: { $eq: sourceFilter } };
-      results = await queryPineconeWithText(query, n, pineconeFilter);
-    } else {
-      // No filter - query all
-      results = await queryPineconeWithText(query, n);
+      "kb" in sourceFilter &&
+      sourceFilter.kb === "clinic"
+        ? sourceFilter.clinicId
+        : null;
+
+    if (!namespace) {
+      logger.warn("No clinic namespace resolved - returning empty context", {
+        filter: sourceFilter ? JSON.stringify(sourceFilter) : "none",
+      });
+      return { context: "", isRagWorking: false, ragSources: [] };
     }
+
+    logger.info(`Using Pinecone NAMESPACE for clinic isolation`, { namespace });
+    const results = await queryPineconeWithTextInNamespace(query, namespace, n);
 
     // Parse Pinecone results with enhanced metadata
     const ragSources: RAGSource[] = results.matches
@@ -388,11 +382,16 @@ export function detectKnowledgeBase(
 }
 
 /**
- * Main retrieve context function - routes every lookup to Pinecone
- * - knowledgeBaseId="clinic": Use Pinecone filtered to clinic sources
- * - knowledgeBaseId={ kb: "clinic", clinicId: "..." }: Use Pinecone filtered to specific clinic
- * - knowledgeBaseId=undefined: NO KB used (user must ask clinic questions)
- * - knowledgeBaseId=other: Use Pinecone filtered to that named source
+ * Main retrieve context function - routes every lookup to Pinecone.
+ *
+ * - knowledgeBaseId={ kb: "clinic", clinicId: "glow-clinic" }: query that
+ *   clinic's namespace. This is the only shape that retrieves anything.
+ * - anything else (undefined, the bare string "clinic", a generic detection
+ *   with clinicId: null, some other named source): empty context.
+ *
+ * The chat route always supplies a clinicId — it falls back to
+ * DEFAULT_TENANT_ID when the request omits one — so in practice every real
+ * lookup takes the namespaced path.
  */
 export async function retrieveContext(
   query: string,
@@ -409,41 +408,25 @@ export async function retrieveContext(
     return cached;
   }
 
-  let result: { context: string; isRagWorking: boolean; ragSources: RAGSource[] };
-
-  // Handle new object format from detectKnowledgeBase()
-  if (
+  const clinicId =
     typeof knowledgeBaseId === "object" &&
     knowledgeBaseId !== null &&
-    "kb" in knowledgeBaseId
-  ) {
-    if (knowledgeBaseId.kb === "clinic") {
-      const clinicLog = knowledgeBaseId.clinicId
-        ? `SPECIFIC clinic: ${knowledgeBaseId.clinicId}`
-        : "ALL clinics (generic)";
-      console.log(`🏥 Using Pinecone for Clinic RAG (${clinicLog})`);
-      result = await retrieveContextFromPinecone(query, n, knowledgeBaseId);
-      ragCache.set(knowledgeBaseId, query, result);
-      return result;
-    }
-  }
+    "kb" in knowledgeBaseId &&
+    knowledgeBaseId.kb === "clinic"
+      ? knowledgeBaseId.clinicId
+      : null;
 
-  // Backward compatibility: string "clinic"
-  if (knowledgeBaseId === "clinic") {
-    console.log("🏥 Using Pinecone for Clinic RAG (backward compat)");
-    result = await retrieveContextFromPinecone(query, n, "clinic");
-    ragCache.set(knowledgeBaseId, query, result);
-    return result;
-  }
-
-  // NO DEFAULT KB - if no knowledgeBaseId, return empty context
-  if (!knowledgeBaseId) {
-    console.log("❌ No KB specified - returning empty context");
+  if (!clinicId) {
+    // No clinic to scope the search to. Answering from an unscoped index would
+    // mean pulling other clinics' content, so return nothing instead.
+    console.log(
+      `❌ No clinic namespace resolved (${JSON.stringify(knowledgeBaseId)}) - returning empty context`
+    );
     return { context: "", isRagWorking: false, ragSources: [] };
   }
 
-  // Any other named source - query Pinecone filtered to that source
-  result = await retrieveContextFromPinecone(query, n, knowledgeBaseId as string);
+  console.log(`🏥 Using Pinecone for Clinic RAG (namespace: ${clinicId})`);
+  const result = await retrieveContextFromPinecone(query, n, knowledgeBaseId);
   ragCache.set(knowledgeBaseId, query, result);
   return result;
 }
