@@ -34,9 +34,14 @@ export interface Tenant {
   basics?: (contact: TenantContact) => string;
 
   /**
-   * Adds a hard scope guard to the prompt: answer only for this clinic, never
-   * name or invent another brand. Set for tenants demoed to real prospects,
-   * where leaking a different clinic's identity is the costly failure.
+   * Hard scope guard in the prompt: answer only for this clinic, never name or
+   * invent another brand, and base every factual answer on retrieved context.
+   *
+   * ON by default — set `false` to opt out. It used to be opt-in, which is how
+   * Airin Skin Clinic ended up reciting Glow's address and price list: nothing
+   * told the model to stay inside Airin's retrieved context, and the prompt
+   * handed it Glow's facts. Only tenants whose facts live in the prompt rather
+   * than in a knowledge base should opt out.
    */
   strictScope?: boolean;
 
@@ -86,6 +91,9 @@ export const TENANTS: Record<string, Tenant> = {
   "lumina-medspa": {
     name: "Lumina Medspa",
     contact: { whatsapp: "+1 (415) 555-0142", emergency: "+1 (415) 555-0142" },
+    // Facts live in promptOnlyIntro, not in a knowledge base, so the
+    // answer-only-from-retrieved-context guard would gag it.
+    strictScope: false,
     basics: () => `- Location: 340 Union Street, Suite 200, San Francisco, CA 94133.
 - Opening hours: Mon–Fri 9:00 AM–7:00 PM, Sat 10:00 AM–5:00 PM. Closed Sundays & public holidays.
 - Contact: text/call +1 (415) 555-0142 · you can also book right here in this chat.
@@ -139,66 +147,54 @@ export const TENANTS: Record<string, Tenant> = {
 - Lead doctor: dr. Amanda Kusuma.`,
   },
 
-  // ── Tenants demoed to real prospects (strict scope guard) ────────────────
+  // ── Tenants demoed to real prospects (own escalation contacts) ───────────
   "vorta-clinic": {
     name: "Vorta Beauty Clinic",
     contact: { whatsapp: "+62 811-8883-318", emergency: "+62 811-8883-318" },
-    strictScope: true,
   },
   "ira-skincare": {
     name: "dr. Ira Skin Care & Slimming",
     contact: { whatsapp: "0821-3191-6900", emergency: "0821-3191-6900" },
-    strictScope: true,
   },
   "beauty-palace": {
     name: "Beauty Palace Aesthetic & Hair Transplant Center",
     contact: { whatsapp: "+62 852-8088-8118", emergency: "+62 852-8088-8118" },
-    strictScope: true,
   },
   "drkhe-co": {
     name: "dr. Khé & Co",
     contact: { whatsapp: "0813-8748-6516", emergency: "0813-8748-6516" },
-    strictScope: true,
   },
   "estetika-dental": {
     name: "Estetika Dental Clinic",
     contact: { whatsapp: "0812-1263-1323", emergency: "0812-1263-1323" },
-    strictScope: true,
   },
   "eva-mulia": {
     name: "Eva Mulia Clinic",
     contact: { whatsapp: "0878-4851-6888", emergency: "0878-4851-6888" },
-    strictScope: true,
   },
   "beautylosophy-clinic": {
     name: "The Clinic Beautylosophy",
     contact: { whatsapp: "+62 896-0807-6000", emergency: "+62 896-0807-6000" },
-    strictScope: true,
   },
   nanoglow: {
     name: "NanoGlow Aesthetic Clinic",
     contact: { whatsapp: "0851-1132-0929", emergency: "0851-1132-0929" },
-    strictScope: true,
   },
   "e3a-emily": {
     name: "E3A Emily Aesthetics & Anti Aging Clinic",
     contact: { whatsapp: "0817-9988-322", emergency: "0817-9988-322" },
-    strictScope: true,
   },
   "dc-beauty": {
     name: "DC Beauty Clinic",
     contact: { whatsapp: "0816-971-169", emergency: "0816-971-169" },
-    strictScope: true,
   },
   "dr-yustini": {
     name: "Klinik dr. Yustini",
     contact: { whatsapp: "0812-8045-6625", emergency: "0812-8045-6625" },
-    strictScope: true,
   },
   farla: {
     name: "Farla Aesthetic Clinic",
     contact: { whatsapp: "0812-1108-5805", emergency: "0812-1108-5805" },
-    strictScope: true,
   },
 
   // ── Research tenants (name only; defaults cover the rest) ────────────────
@@ -243,20 +239,32 @@ export function getTenantContact(clinicId: string): TenantContact {
 }
 
 /**
- * Business basics for the system prompt.
+ * Business basics for the system prompt: address, hours, payment, lead doctor.
  *
- * Tenants without their own basics borrow the default tenant's text but keep
- * their OWN contact number — so an unlisted clinic shows Glow's address and
- * hours alongside its own WhatsApp. That is pre-existing behavior, preserved
- * here deliberately; it is a demo-quality wart, not a correctness bug.
+ * Returns "" for a tenant that has none of its own. It used to fall back to the
+ * default tenant's text, which put Glow's Senopati address and Glow's opening
+ * hours into every other clinic's prompt — under a heading telling the model
+ * these facts are "always known, use them directly". Airin Skin Clinic then
+ * answered a location question with Glow's address while Airin's own knowledge
+ * base sat unused in the retrieved context.
+ *
+ * An empty string is the honest answer: the caller omits the block entirely and
+ * the bot falls back to the knowledge base, which is where that clinic's real
+ * address lives.
  */
 export function getTenantBasics(clinicId: string): string {
-  const basics = TENANTS[clinicId]?.basics ?? TENANTS[DEFAULT_TENANT_ID].basics;
+  const basics = TENANTS[clinicId]?.basics;
   return basics ? basics(getTenantContact(clinicId)) : "";
 }
 
+/**
+ * Strict scope is the default: answer only for this clinic, and only from its
+ * knowledge base. Opt OUT by setting strictScope: false — currently only the
+ * two prompt-driven demo tenants do, since their facts live in the prompt
+ * rather than in retrieved context.
+ */
 export function isStrictScopeTenant(clinicId: string): boolean {
-  return TENANTS[clinicId]?.strictScope === true;
+  return TENANTS[clinicId]?.strictScope !== false;
 }
 
 /**
