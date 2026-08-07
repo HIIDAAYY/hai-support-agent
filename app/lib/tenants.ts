@@ -41,6 +41,20 @@ export interface Tenant {
   strictScope?: boolean;
 
   /**
+   * The WhatsApp Business number that routes to THIS tenant — i.e. the number
+   * customers message, which arrives as Twilio's `To` field on the webhook.
+   *
+   * Not the same thing as `contact.whatsapp`, which is the number shown to
+   * customers inside an answer and may be a clinic's ordinary line (or, for
+   * demo tenants, a fictional one).
+   *
+   * Left unset while every demo shares one Twilio sandbox number: with no
+   * mapping, the webhook falls back to keyword detection and the env override.
+   * Set it once a clinic gets its own WABA sender.
+   */
+  whatsappNumber?: string;
+
+  /**
    * Present only for prompt-only demo tenants: those carrying their entire
    * service menu, pricing and persona in the prompt itself, with no database
    * seed behind them.
@@ -243,6 +257,33 @@ export function getTenantBasics(clinicId: string): string {
 
 export function isStrictScopeTenant(clinicId: string): boolean {
   return TENANTS[clinicId]?.strictScope === true;
+}
+
+/**
+ * Reduce a phone number to digits so the same line matches however it is
+ * written. Twilio sends "whatsapp:+14155238886"; a tenant may store
+ * "+1 (415) 523-8886".
+ */
+function normalizePhone(raw: string): string {
+  return raw.replace(/^whatsapp:/i, "").replace(/\D/g, "");
+}
+
+/**
+ * Which tenant owns an inbound WhatsApp number (Twilio's `To` field).
+ *
+ * Returns undefined while tenants share a single sandbox sender — that is the
+ * expected case today, not an error. Callers must have a fallback.
+ */
+export function getTenantIdByWhatsAppNumber(
+  toNumber: string
+): string | undefined {
+  const target = normalizePhone(toNumber);
+  if (!target) return undefined;
+
+  return Object.entries(TENANTS).find(
+    ([, tenant]) =>
+      tenant.whatsappNumber && normalizePhone(tenant.whatsappNumber) === target
+  )?.[0];
 }
 
 /**

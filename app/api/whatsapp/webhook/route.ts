@@ -19,9 +19,62 @@ import {
   getEmergencyResponse,
 } from '@/app/lib/error-handler';
 import { detectKnowledgeBase } from '@/app/lib/utils';
+import {
+  DEFAULT_TENANT_ID,
+  getTenantIdByWhatsAppNumber,
+  getTenantName,
+} from '@/app/lib/tenants';
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
+
+/**
+ * Work out which clinic an inbound WhatsApp message belongs to.
+ *
+ * The chat route overwrites knowledgeBaseId from whatever clinicId it is given
+ * (defaulting to DEFAULT_TENANT_ID), so a webhook that sends no clinicId has
+ * its knowledge-base detection silently discarded. Resolving it here is what
+ * makes that detection count.
+ *
+ * Priority, most to least specific:
+ *   1. The number the customer messaged, when a tenant owns it outright.
+ *   2. A clinic named in this message.
+ *   3. The clinic this conversation already settled on — so a follow-up like
+ *      "berapa harganya?" stays with the clinic being discussed.
+ *   4. WHATSAPP_DEMO_CLINIC_ID, for a shared sandbox sender.
+ *   5. The default tenant.
+ */
+async function resolveClinicId(
+  toNumber: string,
+  body: string,
+  conversationId?: string
+): Promise<{ clinicId: string; reason: string }> {
+  const byNumber = toNumber ? getTenantIdByWhatsAppNumber(toNumber) : undefined;
+  if (byNumber) return { clinicId: byNumber, reason: `dedicated number ${toNumber}` };
+
+  const detected = detectKnowledgeBase(body);
+  if (detected?.clinicId) {
+    return { clinicId: detected.clinicId, reason: 'keyword in message' };
+  }
+
+  if (conversationId) {
+    try {
+      const conversation = await prisma.conversation.findUnique({
+        where: { id: conversationId },
+        select: { metadata: true },
+      });
+      const saved = (conversation?.metadata as any)?.lastDetectedClinicId;
+      if (saved) return { clinicId: saved, reason: 'saved on conversation' };
+    } catch (error) {
+      console.error('Error reading saved clinic from conversation:', error);
+    }
+  }
+
+  const fromEnv = process.env.WHATSAPP_DEMO_CLINIC_ID;
+  if (fromEnv) return { clinicId: fromEnv, reason: 'WHATSAPP_DEMO_CLINIC_ID' };
+
+  return { clinicId: DEFAULT_TENANT_ID, reason: 'default tenant' };
+}
 
 /**
  * WhatsApp Webhook - Receives incoming WhatsApp messages from Twilio
@@ -34,6 +87,7 @@ export async function POST(req: NextRequest) {
     // Parse form data from Twilio
     const formData = await req.formData();
     from = formData.get('From') as string; // Sender's WhatsApp number
+    const to = (formData.get('To') as string) || ''; // OUR number they messaged
     const body = formData.get('Body') as string; // Message text
     const messageSid = formData.get('MessageSid') as string;
 
@@ -91,9 +145,29 @@ export async function POST(req: NextRequest) {
       // Continue without business context
     }
 
-    // Auto-detect knowledge base from user message
-    const detectedKB = detectKnowledgeBase(body);
-    console.log(`📊 Auto-detected KB for "${body.slice(0, 50)}...": ${detectedKB || 'default (UrbanStyle)'}`);
+    // Resolve which clinic this message is for. Sending clinicId is what makes
+    // it stick: the chat route derives knowledgeBaseId from clinicId and
+    // ignores any knowledgeBaseId passed alongside it.
+    const { clinicId, reason } = await resolveClinicId(
+      to,
+      body,
+      session.conversationId
+    );
+    console.log(
+      `🏥 WhatsApp routed to ${getTenantName(clinicId)} (${clinicId}) — via ${reason}`
+    );
+
+    // Remember the clinic so later messages in this thread stay with it even
+    // when they contain no clinic keyword ("berapa harganya?").
+    if (session.conversationId) {
+      try {
+        await updateConversationMetadata(session.conversationId, {
+          lastDetectedClinicId: clinicId,
+        });
+      } catch (error) {
+        console.error('Error saving clinic context to conversation:', error);
+      }
+    }
 
     // Call existing chat API with session history
     const chatResponse = await fetch(
@@ -106,7 +180,7 @@ export async function POST(req: NextRequest) {
         body: JSON.stringify({
           messages: session.messages,
           model: 'claude-haiku-4-5-20251001', // Use Haiku for fast responses
-          knowledgeBaseId: detectedKB, // AUTO-DETECTED! (clinic or undefined for UrbanStyle)
+          clinicId, // Drives knowledgeBaseId + namespace isolation in /api/chat
           businessContext, // Pass business context to chat API
           customerId: session.customerId, // IMPORTANT: Pass customerId for tool execution (booking, etc)
           sessionId: session.conversationId, // Session ID for persistence
