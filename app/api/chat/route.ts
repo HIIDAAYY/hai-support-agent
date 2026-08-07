@@ -198,13 +198,13 @@ export async function POST(req: Request) {
   // Extract data from the request body
   let { messages, model, knowledgeBaseId, sessionId, businessContext, customerId, clinicId } = await req.json();
 
-  // 🔑 CLINIC CONTEXT: Use provided clinicId or default to "lumina-medspa"
+  // 🔑 CLINIC CONTEXT: Use provided clinicId or default to "glow-clinic"
   // This ensures bot always has a clinic context for booking operations.
-  // lumina-medspa (English/USD, prompt-driven, no DB dependency) is the
-  // default demo tenant for the bare URL — best first impression for
-  // international clients and the most cold-start-resilient path.
+  // glow-clinic (Indonesian/IDR) is the default demo tenant for the bare URL.
+  // It is DB/Pinecone-backed, so it exercises the full RAG + booking-tool path.
+  // lumina-medspa stays reachable via ?clinicId=lumina-medspa.
   if (!clinicId) {
-    clinicId = "lumina-medspa";
+    clinicId = "glow-clinic";
     console.log(`🏥 No clinicId specified - defaulting to: ${clinicId}`);
   }
 

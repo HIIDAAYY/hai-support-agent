@@ -64,7 +64,9 @@ interface ClinicRoute {
 }
 
 const CLINICS: ClinicRoute[] = [
-  // English / USD demo tenant — the default for foreign-buyer demos.
+  // Indonesia / IDR demo tenant — the default for new senders.
+  { id: "glow-clinic", name: "Klinik Glow Aesthetics", patterns: [/\bglow\b/] },
+  // English / USD demo tenant — for foreign-buyer demos.
   { id: "lumina-medspa", name: "Lumina Medspa (San Francisco)", patterns: [/lumina/, /med\s*spa/] },
   { id: "ira-skincare", name: "dr. Ira Skin Care & Slimming", patterns: [/\bira\b/] },
   { id: "beauty-palace", name: "Beauty Palace Aesthetic & Hair Transplant", patterns: [/beauty\s*palace/, /\bpalace\b/] },
@@ -74,13 +76,15 @@ const CLINICS: ClinicRoute[] = [
 ];
 
 // Klinik default untuk pengirim baru yang tak menyebut kata kunci. Default ke
-// lumina-medspa (Inggris/USD) supaya demo untuk klien asing langsung berbahasa
-// Inggris. Klinik Indonesia tetap bisa diakses via kata kunci (mis. "ira").
+// glow-clinic (Indonesia/IDR). Klinik lain tetap bisa diakses via kata kunci
+// (mis. "ira", atau "lumina" untuk demo Inggris/USD).
 // Override dengan DEMO_CLINIC_ID di .env.local; set "" untuk kembali ke mode tanya.
+// Nilainya harus cocok dengan salah satu id di CLINICS di atas — kalau tidak,
+// script balik ke mode tanya klinik.
 const FORCE_CLINIC_ID =
   process.env.DEMO_CLINIC_ID !== undefined
     ? process.env.DEMO_CLINIC_ID
-    : "lumina-medspa";
+    : "glow-clinic";
 
 // Perintah untuk keluar / pindah dari klinik yang sedang aktif.
 const RESET_PATTERN =

@@ -16,11 +16,10 @@ const RightSidebar = dynamic(() => import("@/components/RightSidebar"), {
 });
 
 // Default demo tenant for the bare URL (no ?clinicId=).
-// lumina-medspa is English/USD and fully prompt-driven (no DB/Pinecone
-// dependency), so it gives the best first impression for international
-// clients and is the most cold-start-resilient tenant. Other tenants
-// stay reachable via ?clinicId=... (e.g. ?clinicId=glow-clinic).
-const DEFAULT_CLINIC_ID = "lumina-medspa";
+// glow-clinic is Indonesian/IDR and DB/Pinecone-backed, so the bare URL
+// exercises the full RAG + booking-tool path. Other tenants stay reachable
+// via ?clinicId=... (e.g. ?clinicId=lumina-medspa for the English/USD demo).
+const DEFAULT_CLINIC_ID = "glow-clinic";
 
 function ChatWrapper() {
   const searchParams = useSearchParams();
