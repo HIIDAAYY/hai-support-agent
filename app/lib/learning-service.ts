@@ -16,7 +16,10 @@ import {
   markConversationAsLearned,
   updateQAPairStatus,
 } from "./db-service";
-import { queryPineconeWithText, upsertTexts } from "@/lib/pinecone";
+import {
+  queryPineconeWithTextInNamespace,
+  upsertTextsToNamespace,
+} from "@/lib/pinecone";
 import { randomUUID } from "crypto";
 
 const anthropic = new Anthropic({
@@ -275,16 +278,23 @@ If no suitable Q&A pairs can be extracted, return an empty array [].`;
 }
 
 /**
- * Check if a question is a duplicate in the knowledge base
+ * Check if a question already exists in ONE clinic's knowledge base.
+ *
+ * Scoped to a namespace: the same question ("berapa harga facial?") is a
+ * legitimate entry for every clinic, with a different answer each time. An
+ * unscoped check treated the first clinic's copy as a duplicate and silently
+ * dropped everyone else's.
  */
-export async function checkDuplicate(question: string): Promise<{
+export async function checkDuplicate(
+  question: string,
+  clinicId: string
+): Promise<{
   isDuplicate: boolean;
   similarity: number;
   existingQuestion?: string;
 }> {
   try {
-    // Query Pinecone with the question
-    const results = await queryPineconeWithText(question, 3);
+    const results = await queryPineconeWithTextInNamespace(question, clinicId, 3);
 
     if (!results.matches || results.matches.length === 0) {
       return { isDuplicate: false, similarity: 0 };
@@ -311,7 +321,12 @@ export async function checkDuplicate(question: string): Promise<{
 }
 
 /**
- * Sync a Q&A pair to Pinecone knowledge base
+ * Sync a Q&A pair into its clinic's Pinecone namespace.
+ *
+ * The namespace comes from the pair's own clinicId, captured when it was
+ * extracted — not from the conversation, whose lastDetectedClinicId is
+ * rewritten on every incoming message and so may no longer describe the clinic
+ * this Q&A came from by the time a reviewer approves it.
  */
 export async function syncToKnowledgeBase(qaPairId: string): Promise<void> {
   try {
@@ -322,34 +337,49 @@ export async function syncToKnowledgeBase(qaPairId: string): Promise<void> {
       throw new Error(`Q&A pair not found: ${qaPairId}`);
     }
 
+    if (!qaPair.clinicId) {
+      // Pre-dates multi-tenant learning. Writing it without a namespace is what
+      // this whole change exists to stop, and guessing a clinic would drop one
+      // tenant's content into another's knowledge base.
+      throw new Error(
+        `Q&A pair ${qaPairId} has no clinicId, so there is no namespace to sync it into. ` +
+          `Set clinic_id on the row first (it predates multi-tenant learning).`
+      );
+    }
+
     // Generate Pinecone ID
     const pineconeId = `learned_${randomUUID()}`;
 
     // Combine question and answer for embedding
     const text = `${qaPair.question}\n\n${qaPair.answer}`;
 
-    // Upsert to Pinecone
-    await upsertTexts([
-      {
-        id: pineconeId,
-        text,
-        metadata: {
-          question: qaPair.question,
-          answer: qaPair.answer,
-          category: qaPair.category,
-          source: "learned", // Tag as learned from conversations
-          learnedFrom: qaPair.conversationId,
-          qualityScore: qaPair.qualityScore,
-          confidenceScore: qaPair.confidenceScore,
-          createdAt: qaPair.createdAt.toISOString(),
+    await upsertTextsToNamespace(
+      [
+        {
+          id: pineconeId,
+          text,
+          metadata: {
+            question: qaPair.question,
+            answer: qaPair.answer,
+            category: qaPair.category,
+            source: "learned", // Tag as learned from conversations
+            clinicId: qaPair.clinicId, // Matches the seeded FAQ vectors' shape
+            learnedFrom: qaPair.conversationId,
+            qualityScore: qaPair.qualityScore,
+            confidenceScore: qaPair.confidenceScore,
+            createdAt: qaPair.createdAt.toISOString(),
+          },
         },
-      },
-    ]);
+      ],
+      qaPair.clinicId
+    );
 
     // Update database with Pinecone ID
     await updateQAPairStatus(qaPairId, "SYNCED", pineconeId);
 
-    console.log(`✅ Synced Q&A pair ${qaPairId} to Pinecone as ${pineconeId}`);
+    console.log(
+      `✅ Synced Q&A pair ${qaPairId} to namespace "${qaPair.clinicId}" as ${pineconeId}`
+    );
   } catch (error) {
     console.error("Error syncing to knowledge base:", error);
     throw error;
@@ -397,6 +427,28 @@ export async function learnFromConversation(
       };
     }
 
+    // Which clinic did this conversation belong to? Everything downstream —
+    // the duplicate check and the Pinecone write — is scoped to it, so without
+    // one there is no safe place to put the result.
+    const conversation = await getConversationById(conversationId);
+    const clinicId = conversation?.metadata?.lastDetectedClinicId;
+
+    if (!clinicId) {
+      console.log(
+        `⏭️  Skipping conversation ${conversationId}: no clinic recorded, nothing to scope the knowledge base write to`
+      );
+      return {
+        success: false,
+        qualityScore: evaluation.score,
+        qaPairsCreated: 0,
+        qaPairsApproved: 0,
+        qaPairsSynced: 0,
+        message: "No clinic context on this conversation - cannot attribute learned Q&A",
+      };
+    }
+
+    console.log(`🏥 Learning scoped to clinic: ${clinicId}`);
+
     // Mark conversation as learned
     await markConversationAsLearned(conversationId, evaluation.score);
 
@@ -421,12 +473,12 @@ export async function learnFromConversation(
 
     // Step 3: Process each Q&A pair
     for (const qa of extractedQAs) {
-      // Check for duplicates
-      const dupCheck = await checkDuplicate(qa.question);
+      // Duplicate within THIS clinic's knowledge base only
+      const dupCheck = await checkDuplicate(qa.question, clinicId);
 
       if (dupCheck.isDuplicate) {
         console.log(
-          `⏭️  Skipping duplicate Q&A: "${qa.question.substring(0, 50)}..." (similarity: ${dupCheck.similarity})`
+          `⏭️  Skipping duplicate Q&A for ${clinicId}: "${qa.question.substring(0, 50)}..." (similarity: ${dupCheck.similarity})`
         );
         continue;
       }
@@ -440,6 +492,7 @@ export async function learnFromConversation(
         category: qa.category,
         qualityScore: evaluation.score,
         confidenceScore: qa.confidence,
+        clinicId,
       });
 
       created++;

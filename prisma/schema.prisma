@@ -245,6 +245,15 @@ model LearnedQAPair {
   conversationId    String   @map("conversation_id")
   sourceMessageIds  String[] @map("source_message_ids") // Which messages were used
 
+  // Which clinic this Q&A belongs to = the Pinecone namespace it syncs into.
+  // Captured at extraction time rather than read from the conversation at sync
+  // time: approval can happen days later, and ConversationMetadata
+  // .lastDetectedClinicId is overwritten on every incoming message, so it no
+  // longer describes the clinic this Q&A came from.
+  // Nullable for rows created before multi-tenant sync existed; those cannot be
+  // synced until a clinic is assigned.
+  clinicId          String?  @map("clinic_id")
+
   // Q&A content
   question          String   @db.Text
   answer            String   @db.Text
@@ -273,6 +282,7 @@ model LearnedQAPair {
   conversation      Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
   @@index([conversationId])
+  @@index([clinicId])
   @@index([status])
   @@index([qualityScore])
 

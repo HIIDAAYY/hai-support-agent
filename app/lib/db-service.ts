@@ -593,6 +593,11 @@ export async function createLearnedQAPair(data: {
   category?: string;
   qualityScore: number;
   confidenceScore: number;
+  /**
+   * Clinic this Q&A belongs to — it becomes the Pinecone namespace on sync.
+   * Required: a pair without one can never be synced anywhere safe.
+   */
+  clinicId: string;
 }) {
   try {
     const qaPair = await prisma.learnedQAPair.create({
@@ -607,7 +612,7 @@ export async function createLearnedQAPair(data: {
       },
     });
 
-    console.log(`✅ Created learned Q&A pair: ${qaPair.id}`);
+    console.log(`✅ Created learned Q&A pair: ${qaPair.id} (clinic: ${data.clinicId})`);
     return qaPair;
   } catch (error) {
     console.error('Error creating learned Q&A pair:', error);
