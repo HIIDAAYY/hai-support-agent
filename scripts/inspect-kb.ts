@@ -13,14 +13,31 @@ import "./lib/env";
 import { getPineconeIndex } from "../lib/pinecone";
 import { discoverTenantIds, loadTenantFAQ } from "./lib/faq";
 
+/** Per-tenant namespaces only — the unnamed default is reported separately. */
 async function namespaceCounts(): Promise<Record<string, number>> {
   const stats = await getPineconeIndex().describeIndexStats();
   const out: Record<string, number> = {};
   for (const [name, info] of Object.entries(stats.namespaces ?? {})) {
-    if (!name) continue; // skip the unnamed default namespace
+    if (!name) continue;
     out[name] = (info as any)?.recordCount ?? 0;
   }
   return out;
+}
+
+/**
+ * Vectors sitting in the unnamed default namespace.
+ *
+ * Nothing should live here. Namespaced queries never reach it, so its contents
+ * are invisible to the normal retrieval path — but the legacy fallback branches
+ * in app/lib/utils.ts (a "clinic" filter with no clinicId) DO query it, and
+ * anything found there is unisolated: one query can pull several clinics' Q&A
+ * at once. Reporting it separately is deliberate; hiding it is how 358 stale
+ * vectors went unnoticed.
+ */
+async function defaultNamespaceCount(): Promise<number> {
+  const stats = await getPineconeIndex().describeIndexStats();
+  const entry = Object.entries(stats.namespaces ?? {}).find(([name]) => !name);
+  return (entry?.[1] as any)?.recordCount ?? 0;
 }
 
 async function overview() {
@@ -28,6 +45,8 @@ async function overview() {
   const stats = await index.describeIndexStats();
   const counts = await namespaceCounts();
   const names = Object.keys(counts).sort();
+  const tenantTotal = names.reduce((sum, n) => sum + counts[n], 0);
+  const orphaned = await defaultNamespaceCount();
 
   console.log(`\n${"=".repeat(70)}`);
   console.log(`📊 PINECONE INDEX: ${process.env.PINECONE_INDEX_NAME}`);
@@ -37,6 +56,22 @@ async function overview() {
   console.log(`   Namespaces:    ${names.length}\n`);
 
   names.forEach((n) => console.log(`   ${n.padEnd(28)} ${counts[n]} vectors`));
+  console.log(`\n   ${"in tenant namespaces".padEnd(28)} ${tenantTotal} vectors`);
+
+  if (orphaned > 0) {
+    console.log(`   ${"in DEFAULT namespace".padEnd(28)} ${orphaned} vectors  ⚠️`);
+    console.log(
+      `\n   ⚠️  ${orphaned} vectors sit outside any tenant namespace. They predate`
+    );
+    console.log(
+      `      namespace isolation, so a query that reaches them is not scoped to`
+    );
+    console.log(`      one clinic.`);
+    console.log(
+      `      kb:purge will NOT remove them: kb:seed cannot rebuild the default`
+    );
+    console.log(`      namespace, so clearing it is irreversible. Decide manually.`);
+  }
   console.log("");
 }
 
