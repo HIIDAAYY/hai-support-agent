@@ -20,7 +20,12 @@
     "build:right": "cross-env NEXT_PUBLIC_INCLUDE_LEFT_SIDEBAR=false NEXT_PUBLIC_INCLUDE_RIGHT_SIDEBAR=true next build",
     "build:chat": "cross-env NEXT_PUBLIC_INCLUDE_LEFT_SIDEBAR=false NEXT_PUBLIC_INCLUDE_RIGHT_SIDEBAR=false next build",
     "vercel-build": "prisma migrate deploy && npm run build",
-    "whatsapp": "tsx scripts/whatsapp-qr.ts"
+    "whatsapp": "tsx scripts/whatsapp-qr.ts",
+    "kb:seed": "tsx scripts/seed-tenant.ts",
+    "kb:purge": "tsx scripts/purge-tenant.ts",
+    "kb:inspect": "tsx scripts/inspect-kb.ts",
+    "kb:learn": "tsx scripts/manual-learn.ts",
+    "demo:screenshots": "node scripts/generate-demo-screenshots.js"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^2.0.44",
