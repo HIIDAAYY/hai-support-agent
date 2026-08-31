@@ -129,8 +129,35 @@ const logTimestamp = (label: string, start: number) => {
   console.log(`⏱️ [${timestamp}] ${label}: ${time}s`);
 };
 
+// Simple Rate Limiter to protect against API abuse & credit drain (20 requests per minute per IP)
+const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
+const RATE_LIMIT_MAX = 20;
+const RATE_LIMIT_WINDOW = 60 * 1000;
+
+function isRateLimited(clientIp: string): boolean {
+  if (clientIp === "127.0.0.1" || clientIp === "::1" || clientIp === "unknown") return false;
+  const now = Date.now();
+  const record = rateLimitMap.get(clientIp);
+
+  if (!record || now > record.resetTime) {
+    rateLimitMap.set(clientIp, { count: 1, resetTime: now + RATE_LIMIT_WINDOW });
+    return false;
+  }
+
+  record.count += 1;
+  return record.count > RATE_LIMIT_MAX;
+}
+
 // Main POST request handler
 export async function POST(req: Request) {
+  const clientIp = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+  if (isRateLimited(clientIp)) {
+    return new Response(
+      JSON.stringify({ error: "Too many requests. Please try again later." }),
+      { status: 429, headers: { "Content-Type": "application/json" } }
+    );
+  }
+
   const apiStart = performance.now();
   const measureTime = (label: string) => logTimestamp(label, apiStart);
 

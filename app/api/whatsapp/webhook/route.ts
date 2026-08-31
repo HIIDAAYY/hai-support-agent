@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import {
   sendWhatsAppMessage,
   sendWhatsAppMessageWithQuestions,
+  validateTwilioSignature,
 } from '@/app/lib/twilio-client';
 import {
   getSession,
@@ -100,6 +101,20 @@ export async function POST(req: NextRequest) {
     if (!from || !body) {
       console.error('Missing required fields: From or Body');
       return new NextResponse('Bad Request', { status: 400 });
+    }
+
+    // Optional: Validate Twilio signature if header is present and TWILIO_AUTH_TOKEN is set
+    const twilioSignature = req.headers.get('x-twilio-signature');
+    if (process.env.TWILIO_AUTH_TOKEN && twilioSignature) {
+      const params: Record<string, string> = {};
+      formData.forEach((val, key) => {
+        if (typeof val === 'string') params[key] = val;
+      });
+      const isValid = validateTwilioSignature(twilioSignature, req.url, params);
+      if (!isValid) {
+        console.error('Invalid Twilio webhook signature');
+        return new NextResponse('Unauthorized', { status: 401 });
+      }
     }
 
     // Get or create session for this phone number (now async)
