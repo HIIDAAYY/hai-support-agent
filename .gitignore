@@ -95,3 +95,6 @@ PERUBAHAN-DEMO-buyer-asing.md
 
 # local Claude Code config
 .claude/
+
+# scratchpad agen (salinan kunci/berkas kerja sementara) - do NOT commit
+scratchpad/

@@ -293,7 +293,12 @@ client.on("message", async (msg: any) => {
   try {
     const res = await fetch(CHAT_API, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        // Skrip ini tidak punya header Origin, jadi /api/chat mengenalinya
+        // lewat kunci internal ini (lihat asalDiizinkan di app/api/chat/route.ts).
+        "x-internal-key": process.env.INTERNAL_API_KEY ?? "",
+      },
       body: JSON.stringify({
         messages: history.slice(-10), // 10 pesan terakhir saja
         model: MODEL,
