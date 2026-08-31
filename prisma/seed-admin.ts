@@ -1,18 +1,22 @@
 import { PrismaClient } from '@prisma/client';
 import { hash } from 'bcryptjs';
+import crypto from 'crypto';
 
 const prisma = new PrismaClient();
 
 async function main() {
     console.log('Seeding admin data...');
 
-    const passwordHash = await hash('Admin123!', 12);
-    const agentPasswordHash = await hash('Agent123!', 12);
+    const defaultAdminPass = process.env.INITIAL_ADMIN_PASSWORD || crypto.randomBytes(16).toString('hex');
+    const defaultAgentPass = process.env.INITIAL_AGENT_PASSWORD || crypto.randomBytes(16).toString('hex');
 
-    // Create Super Admin
+    const passwordHash = await hash(defaultAdminPass, 12);
+    const agentPasswordHash = await hash(defaultAgentPass, 12);
+
+    // Create Super Admin (Do NOT overwrite passwordHash on update!)
     const admin = await prisma.adminUser.upsert({
         where: { username: 'admin' },
-        update: { passwordHash, updatedAt: new Date() },
+        update: { updatedAt: new Date() },
         create: {
             id: 'admin-1',
             username: 'admin',
@@ -24,10 +28,10 @@ async function main() {
         },
     });
 
-    // Create Agents
+    // Create Agents (Do NOT overwrite passwordHash on update!)
     const agent1 = await prisma.adminUser.upsert({
         where: { username: 'agent1' },
-        update: { passwordHash: agentPasswordHash, updatedAt: new Date() },
+        update: { updatedAt: new Date() },
         create: {
             id: 'agent-1',
             username: 'agent1',
@@ -41,7 +45,7 @@ async function main() {
 
     const agent2 = await prisma.adminUser.upsert({
         where: { username: 'agent2' },
-        update: { passwordHash: agentPasswordHash, updatedAt: new Date() },
+        update: { updatedAt: new Date() },
         create: {
             id: 'agent-2',
             username: 'agent2',
@@ -53,10 +57,7 @@ async function main() {
         },
     });
 
-    console.log('Created admin users:', { admin, agent1, agent2 });
-
-    // Create dummy conversations if needed (optional, assuming main seed does this or app usage)
-    // But for admin dashboard demo, let's ensure we have some data.
+    console.log('Created/verified admin users:', { adminId: admin.id, agent1Id: agent1.id, agent2Id: agent2.id });
 
     // Check if we have customers
     let customer = await prisma.customer.findFirst();
@@ -69,30 +70,7 @@ async function main() {
         });
     }
 
-    // Create a pending handoff conversation
-    const conv1 = await prisma.conversation.create({
-        data: {
-            customerId: customer.id,
-            status: 'REDIRECTED',
-            messages: {
-                create: [
-                    { role: 'user', content: 'I need to speak to a human agent please.' },
-                    { role: 'assistant', content: 'I understand. I will transfer you to an agent.' },
-                ]
-            }
-        }
-    });
-
-    await prisma.conversationHandoff.create({
-        data: {
-            conversationId: conv1.id,
-            priority: 2, // High
-            handoffReason: 'Customer requested human agent',
-            status: 'PENDING',
-        }
-    });
-
-    console.log('Seeding completed.');
+    console.log('Seeding completed successfully.');
 }
 
 main()
