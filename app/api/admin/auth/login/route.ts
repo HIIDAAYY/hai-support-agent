@@ -24,24 +24,7 @@ export async function POST(request: Request) {
             );
         }
 
-        let isValid = await verifyPassword(password, admin.passwordHash);
-
-        // Auto-fix: if hash was from old bcrypt, rehash with bcryptjs
-        if (!isValid) {
-            const DEFAULT_PASSWORDS: Record<string, string> = {
-                admin: 'Admin123!',
-                agent1: 'Agent123!',
-                agent2: 'Agent123!',
-            };
-            if (DEFAULT_PASSWORDS[username] === password) {
-                const newHash = await hashPassword(password);
-                await prisma.adminUser.update({
-                    where: { id: admin.id },
-                    data: { passwordHash: newHash },
-                });
-                isValid = true;
-            }
-        }
+        const isValid = await verifyPassword(password, admin.passwordHash);
 
         if (!isValid) {
             return NextResponse.json(

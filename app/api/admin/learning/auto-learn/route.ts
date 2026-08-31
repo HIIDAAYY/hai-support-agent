@@ -30,16 +30,15 @@ const MAX_CONVERSATIONS_PER_RUN = 100; // Limit to prevent timeouts
 // Simple API key protection
 function checkAuth(req: NextRequest): boolean {
   const adminKey = process.env.LEARNING_ADMIN_KEY;
-  if (!adminKey) return true; // No auth required if key not set
+  const cronSecretKey = process.env.CRON_SECRET;
 
   const authHeader = req.headers.get("authorization");
   const cronSecret = req.headers.get("x-vercel-cron-secret");
 
-  // Accept either admin key or Vercel cron secret
-  return (
-    authHeader === `Bearer ${adminKey}` ||
-    Boolean(cronSecret && cronSecret === process.env.CRON_SECRET)
-  );
+  const isValidAdminKey = Boolean(adminKey && authHeader === `Bearer ${adminKey}`);
+  const isValidCronSecret = Boolean(cronSecretKey && cronSecret === cronSecretKey);
+
+  return isValidAdminKey || isValidCronSecret;
 }
 
 /**
