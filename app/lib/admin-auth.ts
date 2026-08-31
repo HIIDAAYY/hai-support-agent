@@ -1,10 +1,14 @@
 import { hash, compare } from 'bcryptjs';
 import { prisma } from '@/lib/prisma';
-import { randomBytes } from 'crypto';
+import { randomBytes, createHash } from 'crypto';
 import { cookies } from 'next/headers';
 
 const SALT_ROUNDS = 12;
 const SESSION_DURATION_DAYS = 7;
+
+// The column is called tokenHash, so store a hash - not the raw token. A DB
+// leak then hands the attacker no usable session cookie.
+const sidik = (t: string) => createHash('sha256').update(t).digest('hex');
 
 export async function hashPassword(password: string): Promise<string> {
     return hash(password, SALT_ROUNDS);
@@ -24,7 +28,7 @@ export async function createSession(adminUserId: string) {
         data: {
             id: randomBytes(16).toString('hex'),
             adminUserId,
-            tokenHash: token, // In a real prod app, you might want to hash this token too
+            tokenHash: sidik(token),
             expiresAt,
         },
     });
@@ -46,7 +50,7 @@ export async function validateSession() {
     if (!token) return null;
 
     const session = await prisma.adminSession.findUnique({
-        where: { tokenHash: token },
+        where: { tokenHash: sidik(token) },
         include: { AdminUser: true },
     });
 
@@ -61,7 +65,7 @@ export async function deleteSession() {
     const token = cookies().get('admin_session')?.value;
     if (token) {
         await prisma.adminSession.deleteMany({
-            where: { tokenHash: token },
+            where: { tokenHash: sidik(token) },
         });
     }
     cookies().delete('admin_session');

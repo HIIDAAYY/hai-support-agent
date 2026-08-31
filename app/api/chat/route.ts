@@ -129,32 +129,111 @@ const logTimestamp = (label: string, start: number) => {
   console.log(`⏱️ [${timestamp}] ${label}: ${time}s`);
 };
 
-// Simple Rate Limiter to protect against API abuse & credit drain (20 requests per minute per IP)
+// ===========================================================================
+// ORIGIN GATE - the primary protection for this endpoint.
+//
+// Every call here spends money (Claude + OpenAI embeddings + Pinecone) and the
+// endpoint has no user authentication, so we only serve callers we recognise:
+// browsers on an allow-listed origin, plus our own server-to-server callers
+// carrying the shared internal key.
+// ===========================================================================
+const ASAL_DIIZINKAN = (process.env.ALLOWED_ORIGINS ?? "")
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
+
+function asalDiizinkan(req: Request): boolean {
+  // Server-to-server path (the WhatsApp webhook) - it has no Origin header.
+  const internalKey = process.env.INTERNAL_API_KEY;
+  if (internalKey && req.headers.get("x-internal-key") === internalKey) {
+    return true;
+  }
+
+  const origin = req.headers.get("origin");
+  if (!origin) return false;
+
+  // Not configured means closed, never open.
+  if (ASAL_DIIZINKAN.length === 0) return false;
+
+  try {
+    return ASAL_DIIZINKAN.includes(new URL(origin).origin);
+  } catch (error) {
+    return false;
+  }
+}
+
+// ===========================================================================
+// RATE LIMIT - 20 requests per 60 seconds per IP.
+//
+// In-process only: on serverless each instance keeps its own counter, so this
+// slows abuse rather than stopping it. See the note at the end of this block.
+// ===========================================================================
 const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
 const RATE_LIMIT_MAX = 20;
 const RATE_LIMIT_WINDOW = 60 * 1000;
+const RATE_LIMIT_MAP_MAX_ENTRIES = 5000;
 
-function isRateLimited(clientIp: string): boolean {
-  if (clientIp === "127.0.0.1" || clientIp === "::1" || clientIp === "unknown") return false;
+function ambilIp(req: Request): string {
+  const forwarded = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
+  if (forwarded) return forwarded;
+
+  const realIp = req.headers.get("x-real-ip")?.trim();
+  if (realIp) return realIp;
+
+  // A missing IP is NOT a free pass - it shares one bucket. The old code let
+  // "unknown" through entirely, which any caller could trigger.
+  return "tanpa-ip";
+}
+
+function bersihkanRateLimitMap(now: number): void {
+  if (rateLimitMap.size <= RATE_LIMIT_MAP_MAX_ENTRIES) return;
+
+  const kedaluwarsa: string[] = [];
+  // Map.forEach on purpose: this project's tsconfig sets no "target", so it
+  // defaults below ES2015 and iterating a Map with for..of fails to compile.
+  rateLimitMap.forEach((record, key) => {
+    if (now > record.resetTime) kedaluwarsa.push(key);
+  });
+  kedaluwarsa.forEach((key) => rateLimitMap.delete(key));
+}
+
+function cekBatasLaju(clientIp: string): { limited: boolean; retryAfter: number } {
   const now = Date.now();
+  bersihkanRateLimitMap(now);
+
   const record = rateLimitMap.get(clientIp);
 
   if (!record || now > record.resetTime) {
     rateLimitMap.set(clientIp, { count: 1, resetTime: now + RATE_LIMIT_WINDOW });
-    return false;
+    return { limited: false, retryAfter: 0 };
   }
 
   record.count += 1;
-  return record.count > RATE_LIMIT_MAX;
+  const retryAfter = Math.max(1, Math.ceil((record.resetTime - now) / 1000));
+  return { limited: record.count > RATE_LIMIT_MAX, retryAfter };
 }
 
 // Main POST request handler
 export async function POST(req: Request) {
-  const clientIp = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
-  if (isRateLimited(clientIp)) {
+  if (!asalDiizinkan(req)) {
+    return new Response(JSON.stringify({ error: "Forbidden" }), {
+      status: 403,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  const clientIp = ambilIp(req);
+  const batas = cekBatasLaju(clientIp);
+  if (batas.limited) {
     return new Response(
       JSON.stringify({ error: "Too many requests. Please try again later." }),
-      { status: 429, headers: { "Content-Type": "application/json" } }
+      {
+        status: 429,
+        headers: {
+          "Content-Type": "application/json",
+          "Retry-After": String(batas.retryAfter),
+        },
+      }
     );
   }
 
@@ -175,7 +254,11 @@ export async function POST(req: Request) {
   console.log(`🏥 CLINIC CONTEXT: ${clinicId} (single-tenant mode)`);
   // Override knowledgeBaseId to force this specific clinic
   knowledgeBaseId = { kb: "clinic", clinicId: clinicId };
-  console.log(`🔒 Data isolation enabled - Bot restricted to ${clinicId} only`);
+  // WARNING: this is NOT isolation. clinicId arrives in the caller's request
+  // body and is never verified against a session, so any caller can ask for
+  // any clinic. Before this app serves a second clinic, clinicId MUST be
+  // derived from the authenticated session instead of from the payload.
+  console.log(`🏥 Knowledge base scoped to clinicId=${clinicId} (unverified, from request body)`);
 
   // Set default model if not provided
   model = model || 'claude-haiku-4-5-20251001';

@@ -59,6 +59,23 @@ async function main() {
 
     console.log('Created/verified admin users:', { adminId: admin.id, agent1Id: agent1.id, agent2Id: agent2.id });
 
+    // A generated password that is never shown locks everyone out of the
+    // account it just created. Print it ONCE, here, and nowhere else.
+    if (!process.env.INITIAL_ADMIN_PASSWORD) {
+        console.log('');
+        console.log('=== GENERATED ADMIN PASSWORD (shown once, save it now) ===');
+        console.log(`  admin : ${defaultAdminPass}`);
+    }
+    if (!process.env.INITIAL_AGENT_PASSWORD) {
+        console.log('=== GENERATED AGENT PASSWORD (shown once, save it now) ===');
+        console.log(`  agent1 / agent2 : ${defaultAgentPass}`);
+    }
+    if (!process.env.INITIAL_ADMIN_PASSWORD || !process.env.INITIAL_AGENT_PASSWORD) {
+        console.log('NOTE: these are only set on FIRST creation of each user.');
+        console.log('      Re-running the seed does not change an existing password.');
+        console.log('');
+    }
+
     // Check if we have customers
     let customer = await prisma.customer.findFirst();
     if (!customer) {

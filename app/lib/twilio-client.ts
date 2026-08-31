@@ -100,24 +100,26 @@ export function validateTwilioSignature(
 ): boolean {
   const authToken = process.env.TWILIO_AUTH_TOKEN;
 
+  // Fail CLOSED: without a token we cannot prove anything about the caller.
   if (!authToken) {
     console.warn('Cannot validate Twilio signature: TWILIO_AUTH_TOKEN not set');
     return false;
   }
 
+  if (!signature || !url) {
+    console.warn('Cannot validate Twilio signature: missing signature or url');
+    return false;
+  }
+
   try {
-    // Use Twilio SDK's utility function for validation
-    const twilio = require('twilio');
-    const expectedSignature = twilio.validateExpressRequest(
-      { body: params, headers: { 'x-twilio-signature': signature } },
-      authToken,
-      { url }
-    );
-    return expectedSignature;
+    // validateRequest() is the raw-values helper. The previous code called
+    // validateExpressRequest() on an object that is not an Express request,
+    // which never validated anything.
+    const { validateRequest } = require('twilio');
+    return validateRequest(authToken, signature, url, params) === true;
   } catch (error) {
     console.warn('Error validating Twilio signature:', error);
-    // For now, accept all requests in production
-    // In a real app, you'd want stricter validation
-    return true;
+    // Fail CLOSED: an error means "not proven valid", never "let it through".
+    return false;
   }
 }

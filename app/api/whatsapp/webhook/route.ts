@@ -78,6 +78,23 @@ async function resolveClinicId(
 }
 
 /**
+ * The public URL Twilio actually signed.
+ *
+ * Behind the Vercel proxy req.url carries an internal host, so a signature
+ * computed over it can never match. Prefer the explicit TWILIO_WEBHOOK_URL,
+ * otherwise rebuild the public URL from the forwarded headers.
+ */
+function urlWebhookPublik(req: NextRequest): string {
+  const fromEnv = process.env.TWILIO_WEBHOOK_URL;
+  if (fromEnv) return fromEnv;
+
+  const proto = req.headers.get('x-forwarded-proto') ?? 'https';
+  const host = req.headers.get('x-forwarded-host') ?? req.headers.get('host') ?? '';
+  const pathname = new URL(req.url).pathname;
+  return `${proto}://${host}${pathname}`;
+}
+
+/**
  * WhatsApp Webhook - Receives incoming WhatsApp messages from Twilio
  * POST /api/whatsapp/webhook
  */
@@ -87,6 +104,33 @@ export async function POST(req: NextRequest) {
   try {
     // Parse form data from Twilio
     const formData = await req.formData();
+
+    // ==========================================================
+    // MANDATORY signature gate. Runs before anything else touches
+    // the payload. A caller that simply omits x-twilio-signature
+    // used to skip validation entirely - now it is rejected.
+    // ==========================================================
+    const params: Record<string, string> = {};
+    formData.forEach((val, key) => {
+      if (typeof val === 'string') params[key] = val;
+    });
+
+    if (!process.env.TWILIO_AUTH_TOKEN) {
+      console.error('TWILIO_AUTH_TOKEN not set - cannot verify webhook caller');
+      return new NextResponse('Server misconfigured', { status: 500 });
+    }
+
+    const twilioSignature = req.headers.get('x-twilio-signature');
+    if (!twilioSignature) {
+      console.error('Missing x-twilio-signature header');
+      return new NextResponse('Unauthorized', { status: 401 });
+    }
+
+    if (!validateTwilioSignature(twilioSignature, urlWebhookPublik(req), params)) {
+      console.error('Invalid Twilio webhook signature');
+      return new NextResponse('Unauthorized', { status: 401 });
+    }
+
     from = formData.get('From') as string; // Sender's WhatsApp number
     const to = (formData.get('To') as string) || ''; // OUR number they messaged
     const body = formData.get('Body') as string; // Message text
@@ -101,20 +145,6 @@ export async function POST(req: NextRequest) {
     if (!from || !body) {
       console.error('Missing required fields: From or Body');
       return new NextResponse('Bad Request', { status: 400 });
-    }
-
-    // Optional: Validate Twilio signature if header is present and TWILIO_AUTH_TOKEN is set
-    const twilioSignature = req.headers.get('x-twilio-signature');
-    if (process.env.TWILIO_AUTH_TOKEN && twilioSignature) {
-      const params: Record<string, string> = {};
-      formData.forEach((val, key) => {
-        if (typeof val === 'string') params[key] = val;
-      });
-      const isValid = validateTwilioSignature(twilioSignature, req.url, params);
-      if (!isValid) {
-        console.error('Invalid Twilio webhook signature');
-        return new NextResponse('Unauthorized', { status: 401 });
-      }
     }
 
     // Get or create session for this phone number (now async)
@@ -191,6 +221,9 @@ export async function POST(req: NextRequest) {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          // The webhook has no Origin header, so /api/chat authenticates it
+          // with this shared key instead.
+          'x-internal-key': process.env.INTERNAL_API_KEY ?? '',
         },
         body: JSON.stringify({
           messages: session.messages,
