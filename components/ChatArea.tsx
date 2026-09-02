@@ -18,6 +18,7 @@ import {
   ArrowRight,
 } from "lucide-react";
 import "highlight.js/styles/atom-one-dark.css";
+import { getUiCopy } from "@/app/lib/ui-copy";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -415,6 +416,9 @@ const getContextualThinking = (userMessage: string): string => {
 };
 
 function ChatArea({ clinicId }: { clinicId: string | null }) {
+  // Chrome copy follows the tenant's language, not the browser's — a clinic's
+  // customers are addressed in the language that clinic serves them in.
+  const copy = getUiCopy(clinicId);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -881,36 +885,19 @@ function ChatArea({ clinicId }: { clinicId: string | null }) {
                 <Sparkles className="w-7 h-7 text-primary-foreground" fill="currentColor" />
               </div>
               <h2 className="text-2xl font-bold mb-8">
-                Here&apos;s how I can help
+                {copy.welcomeHeading}
               </h2>
               <div className="space-y-4 text-sm w-full max-w-md">
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-full bg-secondary flex items-center justify-center shrink-0">
-                    <HandHelping className="w-4 h-4 text-primary" />
+                {[HandHelping, WandSparkles, BookOpenText].map((Icon, i) => (
+                  <div key={i} className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-full bg-secondary flex items-center justify-center shrink-0">
+                      <Icon className="w-4 h-4 text-primary" />
+                    </div>
+                    <p className="text-muted-foreground">
+                      {copy.welcomeBullets[i]}
+                    </p>
                   </div>
-                  <p className="text-muted-foreground">
-                    Ask about our services, prices, or availability — I answer
-                    instantly, 24/7.
-                  </p>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-full bg-secondary flex items-center justify-center shrink-0">
-                    <WandSparkles className="w-4 h-4 text-primary" />
-                  </div>
-                  <p className="text-muted-foreground">
-                    I answer only from this business&apos;s real information — no
-                    made-up details.
-                  </p>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-full bg-secondary flex items-center justify-center shrink-0">
-                    <BookOpenText className="w-4 h-4 text-primary" />
-                  </div>
-                  <p className="text-muted-foreground">
-                    Ready to book? I can schedule appointments and hand off to a
-                    human anytime.
-                  </p>
-                </div>
+                ))}
               </div>
             </div>
           ) : (
@@ -980,7 +967,7 @@ function ChatArea({ clinicId }: { clinicId: string | null }) {
       <CardFooter className="p-4 pt-0 flex flex-col gap-3">
         {messages.length === 0 && (
           <div className="flex justify-center gap-2 flex-wrap">
-            {["Services & prices", "Book an appointment", "Talk to a human"].map((label) => (
+            {copy.quickReplies.map((label) => (
               <Button
                 key={label}
                 type="button"
@@ -1011,7 +998,7 @@ function ChatArea({ clinicId }: { clinicId: string | null }) {
             value={input}
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
-            placeholder="Type your message here..."
+            placeholder={copy.inputPlaceholder}
             disabled={isLoading}
             className="resize-none min-h-[36px] max-h-[120px] bg-transparent border-0 p-2 shadow-none focus-visible:ring-0 flex-1"
             rows={1}

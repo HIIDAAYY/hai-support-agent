@@ -19,12 +19,30 @@ export interface TenantContact {
   emergency: string;
 }
 
+/** Language the interface chrome is written in. */
+export type TenantLocale = "id" | "en";
+
 export interface Tenant {
   /** Full display name. This is the name the bot speaks. */
   name: string;
 
   /** Escalation contacts. Falls back to DEFAULT_CONTACT when absent. */
   contact?: TenantContact;
+
+  /**
+   * Language for the chat chrome — welcome screen, quick-reply chips, composer
+   * placeholder (app/lib/ui-copy.ts). Indonesian by default, since every tenant
+   * here but one is an Indonesian clinic.
+   *
+   * The model already answers in whatever language the visitor writes, but the
+   * chrome renders before anyone has written anything, so it has to choose: an
+   * Indonesian prospect opening the plain URL was met with an English opening
+   * screen and only saw Indonesian after sending a message.
+   *
+   * Set "en" for tenants whose prompt tells the bot to reply in English —
+   * otherwise the chrome and the answers contradict each other.
+   */
+  locale?: TenantLocale;
 
   /**
    * Location / hours / payment facts injected into the system prompt so the
@@ -108,6 +126,9 @@ export const TENANTS: Record<string, Tenant> = {
   "lumina-medspa": {
     name: "Lumina Medspa",
     contact: { whatsapp: "+1 (415) 555-0142", emergency: "+1 (415) 555-0142" },
+    // The one English tenant: promptOnlyIntro below pins the bot to English,
+    // so the chrome has to match.
+    locale: "en",
     // Facts live in promptOnlyIntro, not in a knowledge base, so the
     // answer-only-from-retrieved-context guard would gag it.
     strictScope: false,
@@ -255,6 +276,14 @@ export function getTenantName(clinicId: string): string {
 
 export function getTenantContact(clinicId: string): TenantContact {
   return TENANTS[clinicId]?.contact ?? DEFAULT_CONTACT;
+}
+
+/**
+ * Chrome language for a tenant. Indonesian unless the tenant opts into "en" —
+ * which also makes unregistered ids Indonesian, matching FALLBACK_TENANT_NAME.
+ */
+export function getTenantLocale(clinicId: string): TenantLocale {
+  return TENANTS[clinicId]?.locale ?? "id";
 }
 
 /**
